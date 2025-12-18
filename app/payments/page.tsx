@@ -329,46 +329,46 @@ export default function MembershipPaymentsPage() {
 
   return (
     <MainLayout>
-      <div className="min-h-screen bg-dark-900 p-6">
+      <div className="min-h-screen bg-dark-900">
         {/* Header */}
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex justify-between items-center mb-4 sm:mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-dark-50">Cobros de Membresías</h1>
-            <p className="text-dark-400 mt-1">Gestiona los pagos de membresías de tus clientes</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-dark-50">Cobros de Membresías</h1>
+            <p className="text-sm sm:text-base text-dark-400 mt-1">Gestiona los pagos de membresías de tus clientes</p>
           </div>
         </div>
 
         {/* Métricas del día */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <Card className="bg-dark-800/50 border-dark-700 p-5">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
+          <Card className="bg-dark-800/50 border-dark-700 p-3 sm:p-5">
             <div>
               <p className="text-dark-400 text-xs font-medium uppercase tracking-wide">Total del Día</p>
-              <p className="text-2xl font-bold text-gray-100 mt-2">
+              <p className="text-xl sm:text-2xl font-bold text-gray-100 mt-1 sm:mt-2">
                 ${todayMetrics.totalToday.toLocaleString()}
               </p>
               <p className="text-xs text-dark-500 mt-1">{todayMetrics.count} pagos</p>
             </div>
           </Card>
 
-          <Card className="bg-dark-800/50 border-dark-700 p-5">
+          <Card className="bg-dark-800/50 border-dark-700 p-3 sm:p-5">
             <div>
               <p className="text-dark-400 text-xs font-medium uppercase tracking-wide">Efectivo</p>
-              <p className="text-2xl font-bold text-gray-100 mt-2">
+              <p className="text-xl sm:text-2xl font-bold text-gray-100 mt-1 sm:mt-2">
                 ${todayMetrics.cashToday.toLocaleString()}
               </p>
             </div>
           </Card>
 
-          <Card className="bg-dark-800/50 border-dark-700 p-5">
+          <Card className="bg-dark-800/50 border-dark-700 p-3 sm:p-5">
             <div>
               <p className="text-dark-400 text-xs font-medium uppercase tracking-wide">Transferencia</p>
-              <p className="text-2xl font-bold text-gray-100 mt-2">
+              <p className="text-xl sm:text-2xl font-bold text-gray-100 mt-1 sm:mt-2">
                 ${todayMetrics.transferToday.toLocaleString()}
               </p>
             </div>
           </Card>
 
-          <Card className="bg-dark-800/50 border-dark-700 p-5">
+          <Card className="bg-dark-800/50 border-dark-700 p-3 sm:p-5">
             <div>
               <p className="text-dark-400 text-xs font-medium uppercase tracking-wide flex items-center gap-1">
                 Dinero Afuera
@@ -376,7 +376,7 @@ export default function MembershipPaymentsPage() {
                   <Info className="w-3 h-3 text-dark-400 hover:text-warning-400 transition-colors cursor-help" />
                 </span>
               </p>
-              <p className="text-2xl font-bold text-warning-400 mt-2">
+              <p className="text-xl sm:text-2xl font-bold text-warning-400 mt-1 sm:mt-2">
                 ${totalOverdueDebt.toLocaleString()}
               </p>
             </div>
@@ -384,22 +384,22 @@ export default function MembershipPaymentsPage() {
         </div>
 
         {/* Clientes con membresías */}
-        <Card className="bg-dark-800/50 border-dark-700 p-6 mb-6">
-          <div className="flex items-center gap-2 mb-4">
-            <AlertCircle className="w-5 h-5 text-warning-400" />
-            <h3 className="text-xl font-bold text-gray-50">
+        <Card className="bg-dark-800/50 border-dark-700 p-4 sm:p-6 mb-4 sm:mb-6">
+          <div className="flex items-center gap-2 mb-3 sm:mb-4">
+            <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-warning-400" />
+            <h3 className="text-lg sm:text-xl font-bold text-gray-50">
               Clientes por Cobrar
             </h3>
           </div>
           
           {clientsWithPaymentStatus.filter(item => item && item.monthsOwed > 0).length === 0 ? (
-            <div className="text-center py-12">
-              <CheckCircle className="w-16 h-16 text-success-500 mx-auto mb-4" />
-              <p className="text-dark-300 font-medium">¡Todos los clientes están al día!</p>
-              <p className="text-dark-500 text-sm mt-1">No hay pagos pendientes por cobrar</p>
+            <div className="text-center py-8 sm:py-12">
+              <CheckCircle className="w-12 h-12 sm:w-16 sm:h-16 text-success-500 mx-auto mb-3 sm:mb-4" />
+              <p className="text-sm sm:text-base text-dark-300 font-medium">¡Todos los clientes están al día!</p>
+              <p className="text-xs sm:text-sm text-dark-500 mt-1">No hay pagos pendientes por cobrar</p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2 sm:space-y-3">
               {clientsWithPaymentStatus.filter(item => item && item.monthsOwed > 0).map((item) => {
                 if (!item) return null;
                 const { client, membershipType, monthsOwed, amountOwed, paidMonths, expectedMonths, isOverdue, multipleMemberships, membershipsCount } = item;
@@ -409,24 +409,24 @@ export default function MembershipPaymentsPage() {
                   <div
                     key={client.id}
                     onClick={() => router.push(`/clients/${client.id}`)}
-                    className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${
+                    className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg sm:rounded-xl border transition-all cursor-pointer gap-3 ${
                       hasCriticalDebt 
                         ? 'bg-danger-500/15 border-l-4 border-danger-500 hover:bg-danger-500/20' 
                         : 'bg-dark-800 border-dark-600 hover:border-dark-500'
                     }`}
                   >
                     <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <p className="text-gray-100 font-semibold text-base">{client.name}</p>
-                        <Badge variant="info">
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <p className="text-sm sm:text-base text-gray-100 font-semibold">{client.name}</p>
+                        <Badge variant="info" className="text-xs">
                           {multipleMemberships ? `${membershipsCount} Membresías` : (membershipType && typeof membershipType === 'object' && 'name' in membershipType ? (membershipType as any).name : 'Membresía')}
                         </Badge>
-                        <Badge variant={hasCriticalDebt ? 'danger' : 'warning'}>
+                        <Badge variant={hasCriticalDebt ? 'danger' : 'warning'} className="text-xs">
                           {hasCriticalDebt && <AlertCircle className="w-3 h-3 mr-1" />}
                           Debe {monthsOwed} {monthsOwed === 1 ? 'mes' : 'meses'}
                         </Badge>
                       </div>
-                      <p className="text-sm text-dark-400">
+                      <p className="text-xs sm:text-sm text-dark-400">
                         Pagados: {paidMonths}/{expectedMonths}
                         <span className={`ml-1 font-bold ${hasCriticalDebt ? 'text-danger-400 text-base' : 'text-warning-400'}`}>
                           • Adeuda: ${amountOwed.toLocaleString()}
@@ -440,11 +440,11 @@ export default function MembershipPaymentsPage() {
                       }}
                       size="sm"
                       variant={hasCriticalDebt ? 'danger' : 'primary'}
-                      className={hasCriticalDebt ? 'animate-pulse' : ''}
+                      className={`w-full sm:w-auto ${hasCriticalDebt ? 'animate-pulse' : ''}`}
                     >
-                      {hasCriticalDebt && <AlertCircle className="w-4 h-4 mr-1" />}
-                      <CreditCard className="w-4 h-4 mr-2" />
-                      Cobrar
+                      {hasCriticalDebt && <AlertCircle className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />}
+                      <CreditCard className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                      <span className="text-xs sm:text-sm">Cobrar</span>
                     </Button>
                   </div>
                 );
@@ -454,14 +454,14 @@ export default function MembershipPaymentsPage() {
         </Card>
 
         {/* Pagos del día */}
-        <Card className="bg-dark-800/50 border-dark-700 p-6">
-          <h3 className="text-xl font-bold text-gray-50 mb-4">
+        <Card className="bg-dark-800/50 border-dark-700 p-4 sm:p-6">
+          <h3 className="text-lg sm:text-xl font-bold text-gray-50 mb-3 sm:mb-4">
             Pagos de Hoy
           </h3>
           
           {todayPayments.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-dark-400">No hay pagos registrados hoy</p>
+            <div className="text-center py-6 sm:py-8">
+              <p className="text-sm sm:text-base text-dark-400">No hay pagos registrados hoy</p>
             </div>
           ) : (
             <div className="space-y-2">

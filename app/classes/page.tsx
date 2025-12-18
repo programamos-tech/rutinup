@@ -115,53 +115,60 @@ export default function ClassesPage() {
 
   return (
     <MainLayout>
-      <div className="space-y-6">
-        <div className="flex justify-between items-center">
+      <div className="space-y-4 sm:space-y-6">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-50" data-tour="classes-header">Clases</h1>
-            <p className="text-gray-400 mt-1">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-50" data-tour="classes-header">Clases</h1>
+            <p className="text-sm sm:text-base text-gray-400 mt-1">
               Organiza tus clases grupales, gestiona horarios, inscribe miembros y toma asistencia diaria.
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="primary" onClick={() => {
-              setEditingClass(null);
-              setShowClassModal(true);
-            }} data-tour="classes-add">
+            <Button 
+              variant="primary" 
+              onClick={() => {
+                setEditingClass(null);
+                setShowClassModal(true);
+              }} 
+              data-tour="classes-add"
+              className="w-full sm:w-auto whitespace-nowrap"
+            >
               <Plus className="w-4 h-4 mr-2" />
-              Nueva Clase
+              <span className="hidden sm:inline">Nueva Clase</span>
+              <span className="sm:hidden">Nueva</span>
             </Button>
           </div>
         </div>
 
         {/* Tabs de vista */}
-        <div className="flex gap-2 border-b border-dark-700/50" data-tour="classes-views">
+        <div className="flex gap-2 border-b border-dark-700/50 overflow-x-auto" data-tour="classes-views">
           <button
             onClick={() => setViewMode('calendar')}
-            className={`px-4 py-2 font-medium text-sm transition-all ${
+            className={`px-3 sm:px-4 py-2 font-medium text-xs sm:text-sm transition-all whitespace-nowrap ${
               viewMode === 'calendar'
                 ? 'text-primary-400 border-b-2 border-primary-500'
                 : 'text-gray-400 hover:text-gray-300'
             }`}
           >
-            <Calendar className="w-4 h-4 inline mr-2" />
-            Calendario
+            <Calendar className="w-3 h-3 sm:w-4 sm:h-4 inline mr-1 sm:mr-2" />
+            <span className="hidden sm:inline">Calendario</span>
+            <span className="sm:hidden">Cal.</span>
           </button>
           <button
             onClick={() => setViewMode('list')}
-            className={`px-4 py-2 font-medium text-sm transition-all ${
+            className={`px-3 sm:px-4 py-2 font-medium text-xs sm:text-sm transition-all whitespace-nowrap ${
               viewMode === 'list'
                 ? 'text-primary-400 border-b-2 border-primary-500'
                 : 'text-gray-400 hover:text-gray-300'
             }`}
           >
-            <List className="w-4 h-4 inline mr-2" />
+            <List className="w-3 h-3 sm:w-4 sm:h-4 inline mr-1 sm:mr-2" />
             Lista
           </button>
         </div>
 
         {/* Filtros */}
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
           <Select
             label="Entrenador"
             options={[
@@ -170,24 +177,27 @@ export default function ClassesPage() {
             ]}
             value={filterTrainer}
             onChange={(e) => setFilterTrainer(e.target.value)}
-            className="w-48"
+            className="w-full sm:w-48"
           />
           <div className="flex gap-2 items-end">
             <Button
               variant={filterStatus === 'all' ? 'primary' : 'secondary'}
               onClick={() => setFilterStatus('all')}
+              className="flex-1 sm:flex-none text-xs sm:text-sm"
             >
               Todas
             </Button>
             <Button
               variant={filterStatus === 'active' ? 'primary' : 'secondary'}
               onClick={() => setFilterStatus('active')}
+              className="flex-1 sm:flex-none text-xs sm:text-sm"
             >
               Activas
             </Button>
             <Button
               variant={filterStatus === 'inactive' ? 'primary' : 'secondary'}
               onClick={() => setFilterStatus('inactive')}
+              className="flex-1 sm:flex-none text-xs sm:text-sm"
             >
               Inactivas
             </Button>
@@ -197,30 +207,33 @@ export default function ClassesPage() {
         {/* Vista de Calendario */}
         {viewMode === 'calendar' && (
           <Card>
-            <div className="flex justify-between items-center mb-6">
-              <div className="flex items-center gap-4">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4 sm:mb-6">
+              <div className="flex items-center gap-2 sm:gap-4 justify-center sm:justify-start">
                 <Button
                   variant="secondary"
                   onClick={() => setCurrentWeek(subWeeks(currentWeek, 1))}
+                  className="p-2"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </Button>
-                <h2 className="text-lg font-semibold text-gray-50">
+                <h2 className="text-sm sm:text-lg font-semibold text-gray-50 whitespace-nowrap">
                   {format(weekStart, 'dd MMM')} - {format(addDays(weekStart, 6), 'dd MMM yyyy')}
                 </h2>
                 <Button
                   variant="secondary"
                   onClick={() => setCurrentWeek(addWeeks(currentWeek, 1))}
+                  className="p-2"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </Button>
-                <Button
-                  variant="secondary"
-                  onClick={() => setCurrentWeek(new Date())}
-                >
-                  Hoy
-                </Button>
               </div>
+              <Button
+                variant="secondary"
+                onClick={() => setCurrentWeek(new Date())}
+                className="text-xs sm:text-sm"
+              >
+                Hoy
+              </Button>
             </div>
 
             <div className="grid grid-cols-7 gap-2">

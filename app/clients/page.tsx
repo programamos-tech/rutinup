@@ -226,57 +226,67 @@ export default function ClientsPage() {
 
   return (
     <MainLayout>
-      <div className="space-y-6">
-        <div className="flex justify-between items-start">
+      <div className="space-y-4 sm:space-y-6">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-50" data-tour="clients-header">Miembros</h1>
-            <p className="text-gray-400 mt-2">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-50" data-tour="clients-header">Miembros</h1>
+            <p className="text-sm sm:text-base text-gray-400 mt-1 sm:mt-2">
               Gestiona los miembros de tu gimnasio, sus membresías, pagos y asistencia a clases
             </p>
           </div>
-          <Button variant="primary" onClick={() => setShowNewClientModal(true)} data-tour="clients-add">
+          <Button 
+            variant="primary" 
+            onClick={() => setShowNewClientModal(true)} 
+            data-tour="clients-add"
+            className="w-full sm:w-auto whitespace-nowrap"
+          >
             <Plus className="w-4 h-4 mr-2" />
-            Agregar Miembro
+            <span className="hidden sm:inline">Agregar Miembro</span>
+            <span className="sm:hidden">Agregar</span>
           </Button>
         </div>
 
         <Card>
-          <div className="flex flex-col md:flex-row gap-4 mb-6">
+          <div className="flex flex-col gap-3 sm:gap-4 mb-4 sm:mb-6">
             <div className="flex-1">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 w-5 h-5" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 w-4 h-4 sm:w-5 sm:h-5" />
                 <Input
                   type="text"
                   placeholder="Buscar por nombre, email o WhatsApp..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
+                  className="pl-9 sm:pl-10 text-sm"
                   data-tour="clients-search"
                 />
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button
                 variant={filter === 'all' ? 'primary' : 'secondary'}
                 onClick={() => setFilter('all')}
+                className="flex-1 sm:flex-none text-xs sm:text-sm"
               >
                 Todos
               </Button>
               <Button
                 variant={filter === 'active' ? 'primary' : 'secondary'}
                 onClick={() => setFilter('active')}
+                className="flex-1 sm:flex-none text-xs sm:text-sm"
               >
                 Activos
               </Button>
               <Button
                 variant={filter === 'inactive' ? 'primary' : 'secondary'}
                 onClick={() => setFilter('inactive')}
+                className="flex-1 sm:flex-none text-xs sm:text-sm"
               >
                 Inactivos
               </Button>
               <Button
                 variant={filter === 'expired' ? 'primary' : 'secondary'}
                 onClick={() => setFilter('expired')}
+                className="flex-1 sm:flex-none text-xs sm:text-sm"
               >
                 Vencidos
               </Button>
@@ -284,16 +294,17 @@ export default function ClientsPage() {
           </div>
 
           {filteredClients.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-gray-400">
+            <div className="text-center py-8 sm:py-12">
+              <p className="text-sm sm:text-base text-gray-400">
                 {clients.length === 0
                   ? 'No tienes miembros registrados aún'
                   : 'No se encontraron miembros con los filtros seleccionados'}
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <div className="overflow-x-auto">
+            <>
+              {/* Vista de tabla para desktop */}
+              <div className="hidden lg:block overflow-x-auto">
                 <table className="w-full" data-tour="clients-table">
                   <thead className="bg-dark-800">
                     <tr>
@@ -525,7 +536,160 @@ export default function ClientsPage() {
                   </tbody>
                 </table>
               </div>
-            </div>
+
+              {/* Vista de cards para móvil */}
+              <div className="lg:hidden space-y-3">
+                {filteredClients.map((client) => {
+                  const status = getClientStatus(client.id);
+                  const membership = getClientMembership(client.id);
+                  const daysLeft = getDaysUntilExpiration(client.id);
+                  const lastPayment = getLastPayment(client.id);
+                  const paymentStatus = getPaymentStatus(client.id);
+                  const isUrgent = daysLeft !== null && daysLeft <= 7 && daysLeft >= 0;
+                  const isExpired = daysLeft !== null && daysLeft < 0;
+                  const noPaymentThisMonth = !hasPaidThisMonth(client.id) && membership;
+                  const hasCriticalDebt = paymentStatus && paymentStatus.monthsOwed >= 2;
+
+                  return (
+                    <div
+                      key={client.id}
+                      onClick={() => router.push(`/clients/${client.id}`)}
+                      className={`p-4 rounded-lg border transition-all cursor-pointer ${
+                        hasCriticalDebt 
+                          ? 'bg-danger-500/20 border-danger-500 border-l-4' 
+                          : 'bg-dark-800 border-dark-700 hover:border-primary-500/50'
+                      }`}
+                    >
+                      {/* Header con nombre y estado */}
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="flex-shrink-0 h-10 w-10 rounded-full bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center">
+                            <span className="text-white font-bold text-sm">
+                              {client.name.charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                          <div>
+                            <h3 className="text-sm font-semibold text-gray-50">{client.name}</h3>
+                            {client.phone && (
+                              <div className="flex items-center gap-1 mt-0.5">
+                                <Phone className="w-3 h-3 text-gray-500" />
+                                <span className="text-xs text-gray-500">{client.phone}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <Badge variant={
+                          status.status === 'active' ? 'success' : 
+                          status.status === 'expired' ? 'danger' : 'secondary'
+                        } className="text-xs">
+                          {status.label}
+                        </Badge>
+                      </div>
+
+                      {/* Información de membresía */}
+                      {membership && (
+                        <div className="space-y-2 mb-3 pb-3 border-b border-dark-700">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-gray-400">Membresía</span>
+                            <span className="text-gray-200 font-medium">
+                              {getMembershipTypeName(membership.membershipTypeId)}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-gray-400">Vencimiento</span>
+                            <div className="text-right">
+                              <div className="text-gray-200 font-medium">
+                                {format(new Date(membership.endDate), 'dd/MM/yyyy')}
+                              </div>
+                              {daysLeft !== null && (
+                                <div className={`text-xs font-medium ${
+                                  daysLeft < 0 ? 'text-danger-400' : 
+                                  daysLeft <= 7 ? 'text-warning-400' : 
+                                  'text-gray-500'
+                                }`}>
+                                  {daysLeft < 0 
+                                    ? `Hace ${Math.abs(daysLeft)} ${Math.abs(daysLeft) === 1 ? 'día' : 'días'}`
+                                    : daysLeft === 0
+                                    ? 'Vence hoy'
+                                    : `${daysLeft} ${daysLeft === 1 ? 'día' : 'días'} restantes`
+                                  }
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Estado de pago */}
+                      {paymentStatus && paymentStatus.amountOwed > 0 && (
+                        <div className="mb-3">
+                          <div className="flex items-center justify-between">
+                            <Badge variant={
+                              paymentStatus.monthsOwed >= 2 ? 'danger' : 
+                              paymentStatus.monthsOwed === 1 ? 'warning' : 'success'
+                            } className="text-xs">
+                              {paymentStatus.monthsOwed >= 2 
+                                ? `Debe ${paymentStatus.monthsOwed} meses` 
+                                : paymentStatus.monthsOwed === 1 
+                                ? 'Debe 1 mes' 
+                                : 'Al día'}
+                            </Badge>
+                            <span className={`text-sm font-bold ${
+                              paymentStatus.monthsOwed >= 2 ? 'text-danger-400 text-base' : 'text-gray-200'
+                            }`}>
+                              ${paymentStatus.amountOwed.toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Acciones */}
+                      <div className="flex gap-2">
+                        {paymentStatus && paymentStatus.amountOwed > 0 && (
+                          <Link 
+                            href={`/clients/${client.id}?tab=payments`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex-1"
+                          >
+                            <Button 
+                              variant={paymentStatus.monthsOwed >= 2 ? 'danger' : 'primary'}
+                              size="sm"
+                              className={`w-full ${paymentStatus.monthsOwed >= 2 ? 'animate-pulse' : ''}`}
+                            >
+                              {paymentStatus.monthsOwed >= 2 && <AlertCircle className="w-4 h-4 mr-1" />}
+                              <CreditCard className="w-4 h-4 mr-1" />
+                              <span className="text-xs">Cobrar</span>
+                            </Button>
+                          </Link>
+                        )}
+                        <Button 
+                          variant="secondary" 
+                          size="sm"
+                          className="p-2"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingClient(client);
+                          }}
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button 
+                          variant="danger" 
+                          size="sm"
+                          className="p-2"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteClient(client);
+                          }}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           )}
         </Card>
       </div>

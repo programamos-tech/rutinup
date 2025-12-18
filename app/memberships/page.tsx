@@ -171,21 +171,27 @@ export default function MembershipsPage() {
   return (
     <MainLayout>
       <div className="space-y-6">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
           <div>
-            <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-3xl font-bold text-gray-50" data-tour="memberships-header">Planes de Membresía</h1>
-              <span className="px-3 py-1 bg-primary-500/20 text-primary-400 text-xs font-semibold rounded-full border border-primary-500/30">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-50" data-tour="memberships-header">Planes de Membresía</h1>
+              <span className="px-3 py-1 bg-primary-500/20 text-primary-400 text-xs font-semibold rounded-full border border-primary-500/30 w-fit">
                 Para tus clientes
               </span>
             </div>
-            <p className="text-gray-400 mt-1">
+            <p className="text-sm sm:text-base text-gray-400 mt-1">
               Crea y gestiona los planes de membresía que ofreces a tus clientes del gimnasio
             </p>
           </div>
-          <Button variant="primary" onClick={() => setShowModal(true)} data-tour="memberships-add">
+          <Button 
+            variant="primary" 
+            onClick={() => setShowModal(true)} 
+            data-tour="memberships-add"
+            className="w-full sm:w-auto whitespace-nowrap"
+          >
             <Plus className="w-4 h-4 mr-2" />
-            Crear Plan de Membresía
+            <span className="hidden sm:inline">Crear Plan de Membresía</span>
+            <span className="sm:hidden">Crear Plan</span>
           </Button>
         </div>
 
@@ -194,10 +200,10 @@ export default function MembershipsPage() {
           <Card data-tour="memberships-templates">
             {suggestedTemplates.length > 0 ? (
               <>
-              <div className="flex justify-between items-center mb-4">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 sm:gap-4 mb-4">
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-50">Plantillas Sugeridas de Membresías</h2>
-                  <p className="text-sm text-gray-400 mt-1">
+                  <h2 className="text-base sm:text-lg font-semibold text-gray-50">Plantillas Sugeridas de Membresías</h2>
+                  <p className="text-xs sm:text-sm text-gray-400 mt-1">
                     Plantillas de planes de membresía que puedes usar como base y personalizar para tus clientes
                   </p>
                 </div>
@@ -205,14 +211,14 @@ export default function MembershipsPage() {
                   <Button
                     variant="secondary"
                     onClick={toggleTemplatesVisibility}
-                    className="text-xs"
+                    className="text-xs w-full sm:w-auto"
                   >
                     <X className="w-3 h-3 mr-1" />
                     Ocultar plantillas
                   </Button>
                 )}
               </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               {suggestedTemplates.map((template) => (
                 <div
                   key={template.id}
@@ -233,29 +239,31 @@ export default function MembershipsPage() {
                     </div>
                   </div>
 
-                  <div className="flex justify-between items-start mb-2 pr-20">
+                  <div className="flex justify-between items-start mb-2 pr-0 sm:pr-20">
                     <div className="flex-1">
-                      <h3 className="font-semibold text-gray-50 mb-1">{template.name}</h3>
-                      <p className="text-sm text-primary-400 mb-2">${formatPrice(template.price)}/mes</p>
+                      <h3 className="text-sm sm:text-base font-semibold text-gray-50 mb-1">{template.name}</h3>
+                      <p className="text-xs sm:text-sm text-primary-400 mb-2">${formatPrice(template.price)}/mes</p>
                       <p className="text-xs text-gray-500 mb-3">{template.description}</p>
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <Button
                       variant="secondary"
                       className="flex-1 text-xs"
                       onClick={() => handleEditTemplate(template.id)}
                     >
-                      <Edit className="w-3 h-3 mr-1" />
-                      Personalizar
+                      <Edit className="w-3 h-3 sm:mr-1" />
+                      <span className="hidden sm:inline ml-1">Personalizar</span>
+                      <span className="sm:hidden ml-1">Editar</span>
                     </Button>
                     <Button
                       variant="primary"
-                      className="text-xs px-3"
+                      className="text-xs w-full sm:w-auto sm:px-3"
                       onClick={() => handleCreateFromTemplate(template.id)}
                       title="Usar tal cual"
                     >
-                      <Plus className="w-3 h-3" />
+                      <Plus className="w-3 h-3 sm:mr-0" />
+                      <span className="sm:hidden ml-1">Usar</span>
                     </Button>
                   </div>
                 </div>
@@ -302,27 +310,27 @@ export default function MembershipsPage() {
         {customPlans.length > 0 && (
           <>
             {/* Filtros y título simplificado */}
-            <div className="flex items-center justify-between gap-4 mb-4">
-              <h2 className="text-xl font-semibold text-gray-50">Mis Planes</h2>
-              <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4">
+              <h2 className="text-lg sm:text-xl font-semibold text-gray-50">Mis Planes</h2>
+              <div className="flex flex-wrap gap-2">
                 <Button
                   variant={filter === 'all' ? 'primary' : 'secondary'}
                   onClick={() => setFilter('all')}
-                  className="text-sm"
+                  className="text-xs sm:text-sm flex-1 sm:flex-none"
                 >
                   Todos ({customPlans.length})
                 </Button>
                 <Button
                   variant={filter === 'active' ? 'primary' : 'secondary'}
                   onClick={() => setFilter('active')}
-                  className="text-sm"
+                  className="text-xs sm:text-sm flex-1 sm:flex-none"
                 >
                   Activos ({customPlans.filter((p) => p.isActive).length})
                 </Button>
                 <Button
                   variant={filter === 'inactive' ? 'primary' : 'secondary'}
                   onClick={() => setFilter('inactive')}
-                  className="text-sm"
+                  className="text-xs sm:text-sm flex-1 sm:flex-none"
                 >
                   Inactivos ({customPlans.filter((p) => !p.isActive).length})
                 </Button>
@@ -332,25 +340,25 @@ export default function MembershipsPage() {
             {/* Mis Planes Personalizados */}
             <div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                 {filteredPlans.map((plan) => {
                   const memberCount = getMemberCount(plan.id);
                   return (
                     <Card key={plan.id} className="flex flex-col h-full">
                   <div className="flex-1">
-                    <div className="flex justify-between items-start mb-4">
+                    <div className="flex justify-between items-start mb-3 sm:mb-4">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <h3 className="text-xl font-semibold text-gray-50">{plan.name}</h3>
+                          <h3 className="text-lg sm:text-xl font-semibold text-gray-50">{plan.name}</h3>
                         </div>
-                        <p className="text-2xl font-bold text-primary-400 mb-1">
+                        <p className="text-xl sm:text-2xl font-bold text-primary-400 mb-1">
                           ${formatPrice(plan.price)}
                         </p>
-                        <p className="text-sm text-gray-400">
+                        <p className="text-xs sm:text-sm text-gray-400">
                           {plan.durationDays} días • {memberCount} miembro(s)
                         </p>
                       </div>
-                      <Badge variant={plan.isActive ? 'success' : 'danger'}>
+                      <Badge variant={plan.isActive ? 'success' : 'danger'} className="text-xs">
                         {plan.isActive ? 'Activo' : 'Inactivo'}
                       </Badge>
                     </div>
@@ -360,9 +368,9 @@ export default function MembershipsPage() {
                     )}
 
                     {/* Servicios incluidos */}
-                    <div className="space-y-2 mb-4">
+                    <div className="space-y-2 mb-3 sm:mb-4">
                       <h4 className="text-xs font-semibold text-gray-400 uppercase">Incluye:</h4>
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {plan.includes.freeWeights && (
                           <div className="flex items-center gap-2 text-sm text-gray-300">
                             <Check className="w-4 h-4 text-success-400" />
@@ -437,7 +445,7 @@ export default function MembershipsPage() {
                   </div>
 
                   {/* Acciones - siempre al final */}
-                  <div className="flex gap-2 pt-4 mt-auto border-t border-dark-700/30">
+                  <div className="flex flex-wrap sm:flex-nowrap gap-2 pt-3 sm:pt-4 mt-auto border-t border-dark-700/30">
                     <Button
                       variant="secondary"
                       className="flex-1 text-xs"
@@ -447,11 +455,11 @@ export default function MembershipsPage() {
                       }}
                     >
                       <Edit className="w-3 h-3 mr-1" />
-                      Editar
+                      <span className="hidden sm:inline">Editar</span>
                     </Button>
                     <Button
                       variant="secondary"
-                      className="text-xs px-3"
+                      className="text-xs px-2 sm:px-3"
                       onClick={() => handleDuplicate(plan)}
                       title="Duplicar"
                     >
@@ -459,7 +467,7 @@ export default function MembershipsPage() {
                     </Button>
                     <Button
                       variant={plan.isActive ? 'danger' : 'success'}
-                      className="text-xs px-3"
+                      className="text-xs px-2 sm:px-3"
                       onClick={() => handleToggleActive(plan)}
                       title={plan.isActive ? 'Desactivar' : 'Activar'}
                     >
@@ -467,7 +475,7 @@ export default function MembershipsPage() {
                     </Button>
                     <Button
                       variant="danger"
-                      className="text-xs px-3"
+                      className="text-xs px-2 sm:px-3"
                       onClick={() => handleDelete(plan)}
                       title="Eliminar"
                     >
@@ -826,12 +834,12 @@ function PlanModal({
       onClose={onClose}
       title={plan ? 'Editar Plan de Membresía' : 'Crear Nuevo Plan de Membresía'}
     >
-      <form onSubmit={handleSubmit} className="space-y-6 max-h-[85vh] overflow-y-auto">
-        {/* Layout horizontal: dos columnas */}
-        <div className="grid grid-cols-2 gap-6">
+      <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
+        {/* Layout horizontal: dos columnas en desktop, una en móvil */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           {/* Columna izquierda: Información básica */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-gray-300 uppercase">Información Básica</h3>
+          <div className="space-y-3 sm:space-y-4">
+            <h3 className="text-xs sm:text-sm font-semibold text-gray-300 uppercase">Información Básica</h3>
             
             <Input
               label="Nombre del plan"
@@ -951,10 +959,10 @@ function PlanModal({
           </div>
 
           {/* Columna derecha: Servicios incluidos */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-gray-300 uppercase">Servicios Incluidos</h3>
+          <div className="space-y-3 sm:space-y-4">
+            <h3 className="text-xs sm:text-sm font-semibold text-gray-300 uppercase">Servicios Incluidos</h3>
             
-            <div className="grid grid-cols-1 gap-3 max-h-[400px] overflow-y-auto pr-2">
+            <div className="grid grid-cols-1 gap-2 sm:gap-3">
             <label className="flex items-center gap-2 cursor-pointer p-3 bg-dark-800/30 rounded-lg border border-dark-700/30 hover:border-red-500/50 transition-all">
               <input
                 type="checkbox"
@@ -1087,7 +1095,7 @@ function PlanModal({
 
             {/* Lista de servicios personalizados del gym */}
             {gymCustomServices.length > 0 && (
-              <div className="grid grid-cols-1 gap-3 max-h-[200px] overflow-y-auto pr-2">
+              <div className="grid grid-cols-1 gap-2 sm:gap-3">
                 {gymCustomServices.map((service) => {
                   const isIncluded = formData.includes.customServices?.includes(service.id) || false;
                   return (
@@ -1129,12 +1137,13 @@ function PlanModal({
         </div>
 
         {/* Botones - fuera del grid */}
-        <div className="flex justify-end gap-3 pt-4 border-t border-dark-700/30 col-span-2">
-          <Button type="button" variant="secondary" onClick={onClose}>
+        <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 pt-3 sm:pt-4 border-t border-dark-700/30">
+          <Button type="button" variant="secondary" onClick={onClose} className="w-full sm:w-auto order-2 sm:order-1">
             Cancelar
           </Button>
-          <Button type="submit" variant="primary">
-            {plan ? 'Guardar Cambios' : 'Crear Plan de Membresía'}
+          <Button type="submit" variant="primary" className="w-full sm:w-auto order-1 sm:order-2">
+            <span className="hidden sm:inline">{plan ? 'Guardar Cambios' : 'Crear Plan de Membresía'}</span>
+            <span className="sm:hidden">{plan ? 'Guardar' : 'Crear Plan'}</span>
           </Button>
         </div>
       </form>

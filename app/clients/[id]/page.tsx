@@ -298,36 +298,36 @@ export default function ClientDetailPage() {
 
   return (
     <MainLayout>
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         <div>
-          <h1 className="text-3xl font-semibold text-gray-50">{client.name}</h1>
+          <h1 className="text-2xl sm:text-3xl font-semibold text-gray-50">{client.name}</h1>
           {client.phone ? (
             <a
               href={`https://wa.me/${client.phone.replace(/\D/g, '')}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 text-gray-400 hover:text-primary-400 transition-colors mt-1 group"
+              className="flex items-center gap-2 text-sm sm:text-base text-gray-400 hover:text-primary-400 transition-colors mt-1 group"
             >
-              <Phone className="w-4 h-4" />
+              <Phone className="w-3 h-3 sm:w-4 sm:h-4" />
               <span>{client.phone}</span>
-              <span className="text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+              <span className="text-xs opacity-0 group-hover:opacity-100 transition-opacity hidden sm:inline">
                 (Abrir WhatsApp)
               </span>
             </a>
           ) : client.email ? (
-            <p className="text-gray-400 mt-1">{client.email}</p>
+            <p className="text-sm sm:text-base text-gray-400 mt-1">{client.email}</p>
           ) : (
-            <p className="text-gray-400 mt-1">Sin contacto</p>
+            <p className="text-sm sm:text-base text-gray-400 mt-1">Sin contacto</p>
           )}
         </div>
 
         {/* Estado de Membresía y Pagos */}
         {paymentStatus && (
           <Card className="bg-gradient-to-r from-dark-800 to-dark-750 border-dark-700">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex-1">
-                <div className="flex items-center gap-3 mb-3">
-                  <Badge variant="info" className="text-sm">
+                <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+                  <Badge variant="info" className="text-xs sm:text-sm">
                     {clientMemberships.filter(m => m.status === 'active').length > 1 
                       ? `${clientMemberships.filter(m => m.status === 'active').length} Membresías Activas`
                       : (paymentStatus.membershipType && typeof paymentStatus.membershipType === 'object' && 'name' in paymentStatus.membershipType)
@@ -338,13 +338,13 @@ export default function ClientDetailPage() {
                 </div>
 
                 {paymentStatus.monthsOwed > 0 ? (
-                  <div className="flex items-start gap-3">
-                    <AlertCircle className="w-5 h-5 text-warning-400 mt-0.5" />
+                  <div className="flex items-start gap-2 sm:gap-3">
+                    <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-warning-400 mt-0.5 flex-shrink-0" />
                     <div>
-                      <p className="text-warning-400 font-semibold">
+                      <p className="text-sm sm:text-base text-warning-400 font-semibold">
                         Debe {paymentStatus.monthsOwed} {paymentStatus.monthsOwed === 1 ? 'mes' : 'meses'}
                       </p>
-                      <p className="text-2xl font-bold text-warning-400 mt-1">
+                      <p className="text-xl sm:text-2xl font-bold text-warning-400 mt-1">
                         ${paymentStatus.amountOwed.toLocaleString()}
                       </p>
                       <p className="text-xs text-dark-400 mt-1">
@@ -354,21 +354,21 @@ export default function ClientDetailPage() {
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
-                    <CheckCircle className="w-5 h-5 text-success-400" />
-                    <p className="text-success-400 font-semibold text-lg">
+                    <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-success-400" />
+                    <p className="text-base sm:text-lg text-success-400 font-semibold">
                       Pagos al día
                     </p>
                   </div>
                 )}
               </div>
 
-              <Link href="/payments">
+              <Link href="/payments" className="w-full sm:w-auto">
                 <Button
                   variant={paymentStatus.monthsOwed > 0 ? 'primary' : 'secondary'}
-                  className="px-6"
+                  className="w-full sm:w-auto px-4 sm:px-6"
                 >
                   <CreditCard className="w-4 h-4 mr-2" />
-                  Cobrar Membresía
+                  <span className="text-sm sm:text-base">Cobrar Membresía</span>
                 </Button>
               </Link>
             </div>
@@ -377,12 +377,12 @@ export default function ClientDetailPage() {
 
         {/* Tabs */}
         <div>
-          <nav className="flex space-x-2">
+          <nav className="flex space-x-1 sm:space-x-2 overflow-x-auto pb-2">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`py-2.5 px-4 font-medium text-sm rounded-lg transition-all ${
+                className={`py-2 sm:py-2.5 px-2 sm:px-4 font-medium text-xs sm:text-sm rounded-lg transition-all whitespace-nowrap flex-shrink-0 ${
                   activeTab === tab.id
                     ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30'
                     : 'text-gray-400 hover:text-gray-300 hover:bg-dark-800/50'
@@ -398,30 +398,34 @@ export default function ClientDetailPage() {
         {activeTab === 'info' && (
           <>
             <Card>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="h-20 w-20 rounded-full bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center">
-                      <span className="text-3xl font-bold text-white">
+              <div className="space-y-3 sm:space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                  <div className="flex items-center gap-3 sm:gap-4">
+                    <div className="h-16 w-16 sm:h-20 sm:w-20 rounded-full bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center flex-shrink-0">
+                      <span className="text-2xl sm:text-3xl font-bold text-white">
                         {client.name.charAt(0).toUpperCase()}
                       </span>
                     </div>
                     <div>
-                      <h2 className="text-xl font-semibold text-gray-50">{client.name}</h2>
-                      <Badge variant={clientStatus.variant}>
+                      <h2 className="text-lg sm:text-xl font-semibold text-gray-50">{client.name}</h2>
+                      <Badge variant={clientStatus.variant} className="text-xs sm:text-sm mt-1">
                         {clientStatus.label}
                       </Badge>
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="secondary" onClick={() => setShowEditModal(true)}>
-                      <Edit className="w-4 h-4 mr-2" />
-                      Editar
+                    <Button 
+                      variant="secondary" 
+                      onClick={() => setShowEditModal(true)}
+                      className="w-full sm:w-auto text-xs sm:text-sm"
+                    >
+                      <Edit className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-2" />
+                      <span className="hidden sm:inline ml-1">Editar</span>
                     </Button>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 pt-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-3 sm:pt-4">
                   <div>
                     <p className="text-sm text-gray-400">Email</p>
                     <p className="font-medium text-gray-50">{client.email || '-'}</p>
@@ -469,11 +473,11 @@ export default function ClientDetailPage() {
             </Card>
 
             {/* Sección de Gráficas */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
               {/* Gráfica de Pagos Realizados */}
               <Card>
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-50">Pagos Realizados</h3>
+                <div className="space-y-3 sm:space-y-4">
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-50">Pagos Realizados</h3>
                   {paymentsChartData.length > 0 ? (
                     <ResponsiveContainer width="100%" height={250}>
                       <BarChart data={paymentsChartData}>
@@ -563,16 +567,20 @@ export default function ClientDetailPage() {
 
         {activeTab === 'memberships' && (
           <Card>
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold text-gray-50">Membresías</h2>
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-3 sm:mb-4">
+              <h2 className="text-base sm:text-lg font-semibold text-gray-50">Membresías</h2>
               {client.status !== 'inactive' && client.status !== 'suspended' && (
-                <Button variant="primary" onClick={() => setShowMembershipModal(true)}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Asignar Membresía
+                <Button 
+                  variant="primary" 
+                  onClick={() => setShowMembershipModal(true)}
+                  className="w-full sm:w-auto text-xs sm:text-sm"
+                >
+                  <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
+                  <span>Asignar Membresía</span>
                 </Button>
               )}
             </div>
-            <div className="space-y-3">
+            <div className="space-y-2 sm:space-y-3">
               {clientMemberships.length === 0 ? (
                 <p className="text-gray-400 text-center py-8">
                   No hay membresías asignadas
@@ -643,15 +651,15 @@ export default function ClientDetailPage() {
                   return (
                     <div
                       key={membership.id}
-                      className={`p-5 rounded-lg border ${
+                      className={`p-3 sm:p-5 rounded-lg border ${
                         isActive ? 'bg-dark-800 border-dark-600' : 'bg-dark-800/30 border-dark-700/30'
                       }`}
                     >
-                      <div className="flex justify-between items-start mb-4">
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 sm:gap-0 mb-3 sm:mb-4">
                         <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <h3 className="text-lg font-semibold text-gray-50">{type?.name || 'Membresía'}</h3>
-                            <Badge variant={clientIsInactive ? 'warning' : (isActive ? 'success' : 'danger')}>
+                          <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
+                            <h3 className="text-base sm:text-lg font-semibold text-gray-50">{type?.name || 'Membresía'}</h3>
+                            <Badge variant={clientIsInactive ? 'warning' : (isActive ? 'success' : 'danger')} className="text-xs">
                               {clientIsInactive ? 'Vencida' : (isActive ? 'Activa' : 'Vencida')}
                             </Badge>
                           </div>
@@ -771,10 +779,10 @@ export default function ClientDetailPage() {
 
         {activeTab === 'payments' && (
           <Card>
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold text-gray-50">Pagos</h2>
+            <div className="flex justify-between items-center mb-3 sm:mb-4">
+              <h2 className="text-base sm:text-lg font-semibold text-gray-50">Pagos</h2>
             </div>
-            <div className="space-y-3">
+            <div className="space-y-2 sm:space-y-3">
               {clientPayments.length === 0 ? (
                 <p className="text-gray-400 text-center py-8">No hay pagos registrados</p>
               ) : (
@@ -825,41 +833,43 @@ export default function ClientDetailPage() {
                   };
 
                   return (
-                    <div key={payment.id} className="p-4 bg-dark-800/30 rounded-lg border border-dark-700/30">
-                      <div className="flex justify-between items-start mb-3">
-                        <div>
-                          <p className="font-semibold text-gray-50 text-lg">${payment.amount.toLocaleString()}</p>
-                          <p className="text-sm text-gray-400 mt-1">
+                    <div key={payment.id} className="p-3 sm:p-4 bg-dark-800/30 rounded-lg border border-dark-700/30">
+                      <div className="flex justify-between items-start mb-2 sm:mb-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-gray-50 text-base sm:text-lg">${payment.amount.toLocaleString()}</p>
+                          <p className="text-xs sm:text-sm text-gray-400 mt-1">
                             {format(new Date(payment.paymentDate), 'dd/MM/yyyy')} • {payment.method === 'cash' ? 'Efectivo' : payment.method === 'transfer' ? 'Transferencia' : payment.method}
                           </p>
                           {membershipType && (
-                            <p className="text-xs text-gray-500 mt-1">
+                            <p className="text-xs text-gray-500 mt-1 truncate">
                               {membershipType.name}
                             </p>
                           )}
                         </div>
-                        <Badge variant={payment.status === 'completed' ? 'success' : 'warning'}>
+                        <Badge variant={payment.status === 'completed' ? 'success' : 'warning'} className="text-xs ml-2 flex-shrink-0">
                           {payment.status === 'completed' ? 'Completado' : payment.status}
                         </Badge>
                       </div>
                       {payment.status === 'completed' && (
-                        <div className="flex gap-2 pt-3 border-t border-dark-700/30">
+                        <div className="flex flex-col sm:flex-row gap-2 pt-2 sm:pt-3 border-t border-dark-700/30">
                           <Button
                             variant="secondary"
-                            className="flex-1"
+                            className="flex-1 text-xs sm:text-sm"
                             onClick={handleDownload}
                           >
-                            <Download className="w-4 h-4 mr-2" />
-                            Descargar Comprobante
+                            <Download className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                            <span className="hidden sm:inline">Descargar Comprobante</span>
+                            <span className="sm:hidden">Descargar</span>
                           </Button>
                           {canSendWhatsApp && (
                             <Button
                               variant="success"
-                              className="flex-1"
+                              className="flex-1 text-xs sm:text-sm"
                               onClick={handleSendWhatsApp}
                             >
-                              <MessageCircle className="w-4 h-4 mr-2" />
-                              Enviar por WhatsApp
+                              <MessageCircle className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                              <span className="hidden sm:inline">Enviar por WhatsApp</span>
+                              <span className="sm:hidden">WhatsApp</span>
                             </Button>
                           )}
                         </div>
@@ -874,17 +884,17 @@ export default function ClientDetailPage() {
 
         {activeTab === 'classes' && (
           <Card>
-            <h2 className="text-lg font-semibold text-gray-50 mb-4">Clases Asignadas</h2>
+            <h2 className="text-base sm:text-lg font-semibold text-gray-50 mb-3 sm:mb-4">Clases Asignadas</h2>
             {clientEnrollments.length === 0 ? (
-              <p className="text-gray-400 text-center py-8">No está inscrito en ninguna clase</p>
+              <p className="text-sm sm:text-base text-gray-400 text-center py-6 sm:py-8">No está inscrito en ninguna clase</p>
             ) : (
               <div className="space-y-2">
                 {clientEnrollments.map((enrollment) => {
                   const classItem = classes.find((c) => c.id === enrollment.classId);
                   return classItem ? (
                     <div key={enrollment.id} className="p-3 bg-dark-800/30 rounded-lg border border-dark-700/30">
-                      <p className="font-semibold text-gray-50">{classItem.name}</p>
-                      <p className="text-sm text-gray-400 mt-1">
+                      <p className="text-sm sm:text-base font-semibold text-gray-50">{classItem.name}</p>
+                      <p className="text-xs sm:text-sm text-gray-400 mt-1">
                         {classItem.startTime} - {classItem.duration} min
                       </p>
                     </div>
@@ -897,16 +907,20 @@ export default function ClientDetailPage() {
 
         {activeTab === 'medical' && (
           <Card>
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold text-gray-50">Historial Clínico</h2>
-              <Button variant="primary" onClick={() => setShowMedicalModal(true)}>
-                <Plus className="w-4 h-4 mr-2" />
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-3 sm:mb-4">
+              <h2 className="text-base sm:text-lg font-semibold text-gray-50">Historial Clínico</h2>
+              <Button 
+                variant="primary" 
+                onClick={() => setShowMedicalModal(true)}
+                className="w-full sm:w-auto text-xs sm:text-sm"
+              >
+                <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
                 Agregar Registro
               </Button>
             </div>
             <div className="space-y-2">
               {clientMedicalRecords.length === 0 ? (
-                <p className="text-gray-400 text-center py-8">No hay registros clínicos</p>
+                <p className="text-sm sm:text-base text-gray-400 text-center py-6 sm:py-8">No hay registros clínicos</p>
               ) : (
                 clientMedicalRecords.map((record) => {
                   const medicalTypeNames: Record<string, string> = {
@@ -918,16 +932,16 @@ export default function ClientDetailPage() {
                   };
                   
                   return (
-                    <div key={record.id} className="p-4 bg-dark-800/30 rounded-lg border border-dark-700/30">
-                      <div className="flex justify-between items-start mb-2">
-                        <p className="font-semibold text-gray-50">{medicalTypeNames[record.type] || record.type}</p>
-                        <p className="text-sm text-gray-400">
+                    <div key={record.id} className="p-3 sm:p-4 bg-dark-800/30 rounded-lg border border-dark-700/30">
+                      <div className="flex justify-between items-start mb-2 gap-2">
+                        <p className="text-sm sm:text-base font-semibold text-gray-50">{medicalTypeNames[record.type] || record.type}</p>
+                        <p className="text-xs sm:text-sm text-gray-400 whitespace-nowrap flex-shrink-0">
                           {format(new Date(record.date), 'dd/MM/yyyy')}
                         </p>
                       </div>
-                      <p className="text-sm text-gray-200">{record.description}</p>
+                      <p className="text-xs sm:text-sm text-gray-200">{record.description}</p>
                       {record.notes && (
-                        <p className="text-sm text-gray-400 mt-2">{record.notes}</p>
+                        <p className="text-xs sm:text-sm text-gray-400 mt-2">{record.notes}</p>
                       )}
                     </div>
                   );
@@ -938,13 +952,17 @@ export default function ClientDetailPage() {
         )}
 
         {activeTab === 'weight' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
             {/* Registro de Peso */}
             <Card>
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-semibold text-gray-50">Registro de Peso</h2>
-                <Button variant="primary" onClick={() => setShowWeightModal(true)}>
-                  <Plus className="w-4 h-4 mr-2" />
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-3 sm:mb-4">
+                <h2 className="text-base sm:text-lg font-semibold text-gray-50">Registro de Peso</h2>
+                <Button 
+                  variant="primary" 
+                  onClick={() => setShowWeightModal(true)}
+                  className="w-full sm:w-auto text-xs sm:text-sm"
+                >
+                  <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
                   Registrar Peso
                 </Button>
               </div>
@@ -1107,27 +1125,31 @@ export default function ClientDetailPage() {
 
         {activeTab === 'communication' && (
           <Card>
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold text-gray-50">Comunicación</h2>
-              <Button variant="primary" onClick={() => setShowCommunicationModal(true)}>
-                <Plus className="w-4 h-4 mr-2" />
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-3 sm:mb-4">
+              <h2 className="text-base sm:text-lg font-semibold text-gray-50">Comunicación</h2>
+              <Button 
+                variant="primary" 
+                onClick={() => setShowCommunicationModal(true)}
+                className="w-full sm:w-auto text-xs sm:text-sm"
+              >
+                <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
                 Enviar Mensaje
               </Button>
             </div>
             <div className="space-y-2">
               {clientCommunications.length === 0 ? (
-                <p className="text-gray-400 text-center py-8">No hay comunicaciones registradas</p>
+                <p className="text-sm sm:text-base text-gray-400 text-center py-6 sm:py-8">No hay comunicaciones registradas</p>
               ) : (
                 clientCommunications.map((comm) => (
                   <div key={comm.id} className="p-3 bg-dark-800/30 rounded-lg border border-dark-700/30">
-                    <div className="flex justify-between items-start mb-1">
-                      <Badge variant="info">{comm.type === 'whatsapp' ? 'WhatsApp' : 'Email'}</Badge>
-                      <p className="text-sm text-gray-400">
+                    <div className="flex flex-wrap justify-between items-start gap-2 mb-1">
+                      <Badge variant="info" className="text-xs">{comm.type === 'whatsapp' ? 'WhatsApp' : 'Email'}</Badge>
+                      <p className="text-xs sm:text-sm text-gray-400 whitespace-nowrap">
                         {format(new Date(comm.sentAt), 'dd/MM/yyyy HH:mm')}
                       </p>
                     </div>
-                    {comm.subject && <p className="font-semibold text-gray-50 mt-2">{comm.subject}</p>}
-                    <p className="text-sm text-gray-200 mt-1">{comm.message}</p>
+                    {comm.subject && <p className="text-sm sm:text-base font-semibold text-gray-50 mt-2">{comm.subject}</p>}
+                    <p className="text-xs sm:text-sm text-gray-200 mt-1">{comm.message}</p>
                   </div>
                 ))
               )}

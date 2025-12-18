@@ -291,40 +291,41 @@ export default function SettingsPage() {
 
   return (
     <MainLayout>
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-50 mb-2">Configuración</h1>
-            <p className="text-gray-400">Gestiona la información de tu gimnasio</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-50 mb-1 sm:mb-2">Configuración</h1>
+            <p className="text-sm sm:text-base text-gray-400">Gestiona la información de tu gimnasio</p>
           </div>
           <Button
             variant="primary"
             onClick={handleSave}
             disabled={isSaving}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 w-full sm:w-auto whitespace-nowrap"
           >
             {isSaving ? (
-              <>Guardando...</>
+              <span className="text-xs sm:text-sm">Guardando...</span>
             ) : saveSuccess ? (
               <>
                 <CheckCircle2 className="w-4 h-4" />
-                Guardado
+                <span className="text-xs sm:text-sm">Guardado</span>
               </>
             ) : (
               <>
                 <Save className="w-4 h-4" />
-                Guardar cambios
+                <span className="text-xs sm:text-sm hidden sm:inline">Guardar cambios</span>
+                <span className="text-xs sm:hidden">Guardar</span>
               </>
             )}
           </Button>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 border-b border-dark-700/50">
+        <div className="flex gap-1 sm:gap-2 border-b border-dark-700/50 overflow-x-auto">
           <button
             onClick={() => setActiveTab('logo')}
-            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
+            className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${
               activeTab === 'logo'
                 ? 'border-primary-500 text-primary-400'
                 : 'border-transparent text-gray-400 hover:text-gray-300'

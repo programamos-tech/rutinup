@@ -126,63 +126,64 @@ export default function TrainersPage() {
 
   return (
     <MainLayout>
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-50 mb-2">Entrenadores</h1>
-            <p className="text-gray-400">Gestiona los entrenadores de tu gimnasio</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-50 mb-1 sm:mb-2">Entrenadores</h1>
+            <p className="text-sm sm:text-base text-gray-400">Gestiona los entrenadores de tu gimnasio</p>
           </div>
           <Button
             variant="primary"
             onClick={() => handleOpenModal()}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 w-full sm:w-auto whitespace-nowrap"
           >
             <Plus className="w-4 h-4" />
-            Agregar Entrenador
+            <span className="hidden sm:inline">Agregar Entrenador</span>
+            <span className="sm:hidden">Agregar</span>
           </Button>
         </div>
 
         {/* Search */}
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500" />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-500" />
           <Input
             type="text"
-            placeholder="Buscar entrenadores por nombre, email o teléfono..."
+            placeholder="Buscar entrenadores..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
+            className="pl-9 sm:pl-10 text-sm"
           />
         </div>
 
         {/* Trainers List */}
         {filteredTrainers.length === 0 ? (
-          <Card className="p-12 text-center">
-            <Users className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-gray-300 mb-2">
+          <Card className="p-8 sm:p-12 text-center">
+            <Users className="w-12 h-12 sm:w-16 sm:h-16 text-gray-600 mx-auto mb-3 sm:mb-4" />
+            <h3 className="text-lg sm:text-xl font-semibold text-gray-300 mb-2">
               {searchTerm ? 'No se encontraron entrenadores' : 'No hay entrenadores'}
             </h3>
-            <p className="text-gray-500">
+            <p className="text-sm sm:text-base text-gray-500">
               {searchTerm
                 ? 'Intenta con otro término de búsqueda'
                 : 'Comienza agregando tu primer entrenador'}
             </p>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             {filteredTrainers.map((trainer) => {
               const classCount = getTrainerClassCount(trainer.id);
               return (
-                <Card key={trainer.id} className="p-5 hover:border-primary-500/30 transition-colors">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-full bg-primary-500/20 flex items-center justify-center">
-                        <User className="w-6 h-6 text-primary-400" />
+                <Card key={trainer.id} className="p-4 sm:p-5 hover:border-primary-500/30 transition-colors">
+                  <div className="flex items-start justify-between mb-3 sm:mb-4">
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary-500/20 flex items-center justify-center flex-shrink-0">
+                        <User className="w-5 h-5 sm:w-6 sm:h-6 text-primary-400" />
                       </div>
                       <div>
-                        <h3 className="font-semibold text-gray-50 text-lg">{trainer.name}</h3>
+                        <h3 className="text-base sm:text-lg font-semibold text-gray-50">{trainer.name}</h3>
                         {classCount > 0 && (
-                          <p className="text-xs text-gray-500 mt-1">
+                          <p className="text-xs text-gray-500 mt-0.5 sm:mt-1">
                             {classCount} {classCount === 1 ? 'clase' : 'clases'}
                           </p>
                         )}
@@ -190,30 +191,30 @@ export default function TrainersPage() {
                     </div>
                   </div>
 
-                  <div className="space-y-2 mb-4">
+                  <div className="space-y-2 mb-3 sm:mb-4">
                     {trainer.email && (
-                      <div className="flex items-center gap-2 text-sm text-gray-400">
-                        <Mail className="w-4 h-4" />
-                        <span>{trainer.email}</span>
+                      <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-400">
+                        <Mail className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+                        <span className="truncate">{trainer.email}</span>
                       </div>
                     )}
                     {trainer.phone && (
-                      <div className="flex items-center gap-2 text-sm text-gray-400">
-                        <Phone className="w-4 h-4" />
+                      <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-400">
+                        <Phone className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
                         <span>{trainer.phone}</span>
                       </div>
                     )}
                   </div>
 
-                  <div className="flex gap-2 pt-4 border-t border-dark-700/50">
+                  <div className="flex gap-2 pt-3 sm:pt-4 border-t border-dark-700/50">
                     <Button
                       variant="secondary"
                       size="sm"
                       onClick={() => handleOpenModal(trainer)}
-                      className="flex-1"
+                      className="flex-1 text-xs sm:text-sm"
                     >
-                      <Edit className="w-4 h-4 mr-1" />
-                      Editar
+                      <Edit className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1" />
+                      <span className="hidden sm:inline ml-1">Editar</span>
                     </Button>
                     <Button
                       variant="danger"
