@@ -1,0 +1,189 @@
+@import url('https://fonts.googleapis.com/css2?family=BBH+Bogle:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-dark-900 text-gray-100;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  
+  * {
+    @apply border-dark-700;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Inter', system-ui, sans-serif;
+    font-weight: 700;
+    @apply text-gray-50;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-primary-500 text-white px-6 py-2.5 font-medium hover:bg-primary-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm;
+  }
+
+  .btn-secondary {
+    @apply bg-dark-800/50 text-gray-300 px-6 py-2.5 font-medium hover:bg-dark-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm border border-dark-700;
+  }
+
+  .btn-success {
+    @apply bg-success-500 text-white px-6 py-2.5 font-medium hover:bg-success-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm;
+  }
+
+  .btn-danger {
+    @apply bg-danger-500 text-white px-6 py-2.5 font-medium hover:bg-danger-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm;
+  }
+
+  .input-field {
+    @apply w-full px-4 py-2.5 bg-dark-800/50 border border-dark-700 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/20 transition-all text-sm rounded-lg;
+  }
+
+  .card {
+    @apply bg-dark-800/50 p-5 rounded-xl border border-dark-700/50 backdrop-blur-sm;
+  }
+  
+  .metric-card {
+    @apply bg-dark-800/30 p-5 rounded-xl border border-dark-700/30 hover:border-primary-500/30 hover:bg-dark-800/50 transition-all backdrop-blur-sm;
+  }
+}
+
+@layer utilities {
+  @keyframes fade-in-left {
+    from {
+      opacity: 0;
+      transform: translateX(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes fade-in-right {
+    from {
+      opacity: 0;
+      transform: translateX(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes fade-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(30px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-fade-in-left {
+    animation: fade-in-left 0.6s ease-out forwards;
+  }
+
+  .animate-fade-in-right {
+    animation: fade-in-right 0.6s ease-out forwards;
+  }
+
+  .scroll-animate {
+    opacity: 0;
+    transform: translateY(30px);
+    transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+  }
+
+  .scroll-animate.animate-fade-in-up {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .animate-fade-in-up {
+    opacity: 0;
+    animation: fade-in-up 0.8s ease-out forwards;
+  }
+
+  /* Time picker personalizado con colores de la plataforma */
+  input[type="time"]::-webkit-calendar-picker-indicator {
+    background: transparent;
+    cursor: pointer;
+  }
+
+  /* Estilos para el dropdown del time picker (Chrome/Edge) */
+  input[type="time"]::-webkit-datetime-edit {
+    color: #f3f4f6;
+  }
+
+  input[type="time"]::-webkit-datetime-edit-fields-wrapper {
+    color: #f3f4f6;
+  }
+
+  input[type="time"]::-webkit-datetime-edit-text {
+    color: #9ca3af;
+  }
+
+  input[type="time"]::-webkit-datetime-edit-hour-field:focus,
+  input[type="time"]::-webkit-datetime-edit-minute-field:focus {
+    background-color: rgba(239, 68, 68, 0.2);
+    color: #f3f4f6;
+    border-radius: 4px;
+  }
+
+  /* Para Firefox */
+  input[type="time"] {
+    color-scheme: dark;
+  }
+
+  @keyframes pulse {
+    0%, 100% {
+      opacity: 1;
+      box-shadow: 
+        0 0 0 2px rgba(239, 68, 68, 0.5),
+        0 0 20px rgba(239, 68, 68, 0.6),
+        0 0 40px rgba(239, 68, 68, 0.3);
+    }
+    50% {
+      opacity: 0.8;
+      box-shadow: 
+        0 0 0 2px rgba(239, 68, 68, 0.7),
+        0 0 30px rgba(239, 68, 68, 0.8),
+        0 0 60px rgba(239, 68, 68, 0.5);
+    }
+  }
+
+  /* Personalización del time picker con colores de la plataforma */
+  input[type="time"] {
+    color-scheme: dark;
+  }
+
+  /* Estilos para el texto del time picker (Chrome/Edge) */
+  input[type="time"]::-webkit-datetime-edit {
+    color: #f3f4f6;
+  }
+
+  input[type="time"]::-webkit-datetime-edit-fields-wrapper {
+    color: #f3f4f6;
+  }
+
+  input[type="time"]::-webkit-datetime-edit-text {
+    color: #9ca3af;
+  }
+
+  input[type="time"]::-webkit-datetime-edit-hour-field:focus,
+  input[type="time"]::-webkit-datetime-edit-minute-field:focus {
+    background-color: rgba(239, 68, 68, 0.2);
+    color: #f3f4f6;
+    border-radius: 4px;
+    outline: none;
+  }
+
+  /* Nota: El dropdown interno del navegador no se puede personalizar completamente con CSS puro.
+     Para una personalización completa, se necesitaría un componente React personalizado. */
+}
+
