@@ -83,3 +83,4 @@ COMMENT ON COLUMN public.gym_custom_services.name IS
   'Nombre del servicio personalizado (único por gym)';
 
 
+

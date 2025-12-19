@@ -170,3 +170,4 @@ Ver la carpeta raíz para documentación completa de producto:
 - `06-metricas-dashboard.md`
 
 
+

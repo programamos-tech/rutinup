@@ -23,3 +23,4 @@ FROM suggested_plan_templates
 WHERE is_active = true;
 
 
+

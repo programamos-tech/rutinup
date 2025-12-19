@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { useRouter } from 'next/navigation';
+import { Eye, EyeOff } from 'lucide-react';
 
 export default function LoginPage() {
   const { signIn, loading: authLoading } = useAuth();
@@ -15,6 +16,7 @@ export default function LoginPage() {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -102,17 +104,31 @@ export default function LoginPage() {
             />
 
             <div>
-              <Input
-                label="Contraseña"
-                type="password"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                error={errors.password}
-                placeholder="••••••••"
-                required
-                disabled={isSubmitting || authLoading}
-              />
-              <div className="mt-2 text-right">
+              <div className="relative">
+                <Input
+                  label="Contraseña"
+                  type={showPassword ? "text" : "password"}
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  error={errors.password}
+                  placeholder="••••••••"
+                  required
+                  disabled={isSubmitting || authLoading}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-[38px] text-gray-400 hover:text-gray-300 transition-colors focus:outline-none"
+                  tabIndex={-1}
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-5 h-5" />
+                  ) : (
+                    <Eye className="w-5 h-5" />
+                  )}
+                </button>
+              </div>
+              <div className="mt-2 text-center">
                 <Link
                   href="/forgot-password"
                   className="text-sm text-primary-400 hover:text-primary-300 transition-colors"
@@ -148,5 +164,6 @@ export default function LoginPage() {
     </div>
   );
 }
+
 
 

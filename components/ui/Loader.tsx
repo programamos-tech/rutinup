@@ -31,3 +31,4 @@ export function Loader({ size = 'md', text, fullScreen = false }: LoaderProps) {
   );
 }
 
+

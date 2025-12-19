@@ -51,3 +51,4 @@ SELECT
 FROM suggested_plan_templates;
 
 
+

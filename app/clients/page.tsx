@@ -580,7 +580,7 @@ export default function ClientsPage() {
                         </div>
                         <Badge variant={
                           status.status === 'active' ? 'success' : 
-                          status.status === 'expired' ? 'danger' : 'secondary'
+                          status.status === 'expired' ? 'danger' : 'warning'
                         } className="text-xs">
                           {status.label}
                         </Badge>
@@ -644,7 +644,7 @@ export default function ClientsPage() {
                       )}
 
                       {/* Acciones */}
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
                         {paymentStatus && paymentStatus.amountOwed > 0 && (
                           <Link 
                             href={`/clients/${client.id}?tab=payments`}

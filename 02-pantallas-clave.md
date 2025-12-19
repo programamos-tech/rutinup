@@ -350,3 +350,4 @@ Vista detallada de un cliente individual con todas sus informaciones.
 - Mensajes de error claros
 
 
+

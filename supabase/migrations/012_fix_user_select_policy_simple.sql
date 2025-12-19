@@ -37,3 +37,4 @@ CREATE POLICY "Users can view users from their gym"
 -- through application logic or a different mechanism.
 
 
+

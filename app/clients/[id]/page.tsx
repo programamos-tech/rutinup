@@ -298,36 +298,38 @@ export default function ClientDetailPage() {
 
   return (
     <MainLayout>
-      <div className="space-y-4 sm:space-y-6">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-semibold text-gray-50">{client.name}</h1>
+      <div className="space-y-3 sm:space-y-4 md:space-y-6">
+        <div className="pb-1 sm:pb-2">
+          <h1 className="text-base sm:text-xl md:text-2xl font-bold text-gray-50 leading-tight">
+            {client.name}
+          </h1>
           {client.phone ? (
             <a
               href={`https://wa.me/${client.phone.replace(/\D/g, '')}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 text-sm sm:text-base text-gray-400 hover:text-primary-400 transition-colors mt-1 group"
+              className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-gray-400 hover:text-primary-400 transition-colors mt-1 sm:mt-1.5 group"
             >
-              <Phone className="w-3 h-3 sm:w-4 sm:h-4" />
-              <span>{client.phone}</span>
-              <span className="text-xs opacity-0 group-hover:opacity-100 transition-opacity hidden sm:inline">
+              <Phone className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+              <span className="break-all">{client.phone}</span>
+              <span className="text-[10px] sm:text-xs opacity-0 group-hover:opacity-100 transition-opacity hidden sm:inline whitespace-nowrap">
                 (Abrir WhatsApp)
               </span>
             </a>
           ) : client.email ? (
-            <p className="text-sm sm:text-base text-gray-400 mt-1">{client.email}</p>
+            <p className="text-xs sm:text-sm text-gray-400 mt-1 sm:mt-1.5 break-all">{client.email}</p>
           ) : (
-            <p className="text-sm sm:text-base text-gray-400 mt-1">Sin contacto</p>
+            <p className="text-xs sm:text-sm text-gray-400 mt-1 sm:mt-1.5">Sin contacto</p>
           )}
         </div>
 
         {/* Estado de Membresía y Pagos */}
         {paymentStatus && (
-          <Card className="bg-gradient-to-r from-dark-800 to-dark-750 border-dark-700">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <Card className="bg-gradient-to-r from-dark-800 to-dark-750 border-dark-700 p-2.5 sm:p-4 md:p-6">
+            <div className="flex flex-col gap-2 sm:gap-3 md:gap-4">
               <div className="flex-1">
-                <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
-                  <Badge variant="info" className="text-xs sm:text-sm">
+                <div className="flex items-center gap-2 mb-1.5 sm:mb-2">
+                  <Badge variant="info" className="text-[9px] sm:text-[10px] md:text-xs">
                     {clientMemberships.filter(m => m.status === 'active').length > 1 
                       ? `${clientMemberships.filter(m => m.status === 'active').length} Membresías Activas`
                       : (paymentStatus.membershipType && typeof paymentStatus.membershipType === 'object' && 'name' in paymentStatus.membershipType)
@@ -338,37 +340,38 @@ export default function ClientDetailPage() {
                 </div>
 
                 {paymentStatus.monthsOwed > 0 ? (
-                  <div className="flex items-start gap-2 sm:gap-3">
+                  <div className="flex items-start gap-2">
                     <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-warning-400 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <p className="text-sm sm:text-base text-warning-400 font-semibold">
+                    <div className="flex-1">
+                      <p className="text-xs sm:text-sm text-warning-400 font-semibold">
                         Debe {paymentStatus.monthsOwed} {paymentStatus.monthsOwed === 1 ? 'mes' : 'meses'}
                       </p>
-                      <p className="text-xl sm:text-2xl font-bold text-warning-400 mt-1">
+                      <p className="text-2xl sm:text-3xl md:text-4xl font-bold text-warning-400 mt-0.5">
                         ${paymentStatus.amountOwed.toLocaleString()}
                       </p>
-                      <p className="text-xs text-dark-400 mt-1">
+                      <p className="text-[8px] sm:text-[9px] md:text-[10px] text-gray-500 mt-0.5">
                         Actualizado: {format(new Date(), 'dd/MM/yyyy HH:mm')}
                       </p>
                     </div>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-success-400" />
-                    <p className="text-base sm:text-lg text-success-400 font-semibold">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-success-400 flex-shrink-0" />
+                    <p className="text-sm sm:text-base md:text-lg text-success-400 font-semibold">
                       Pagos al día
                     </p>
                   </div>
                 )}
               </div>
 
-              <Link href="/payments" className="w-full sm:w-auto">
+              <Link href="/payments" className="w-full">
                 <Button
                   variant={paymentStatus.monthsOwed > 0 ? 'primary' : 'secondary'}
-                  className="w-full sm:w-auto px-4 sm:px-6"
+                  size="sm"
+                  className="w-full text-[11px] sm:text-xs md:text-sm !py-1.5 sm:!py-2"
                 >
-                  <CreditCard className="w-4 h-4 mr-2" />
-                  <span className="text-sm sm:text-base">Cobrar Membresía</span>
+                  <CreditCard className="w-3 h-3 sm:w-3.5 sm:h-3.5 md:w-4 md:h-4 mr-1.5 sm:mr-2 flex-shrink-0" />
+                  <span>Cobrar Membresía</span>
                 </Button>
               </Link>
             </div>
@@ -376,13 +379,13 @@ export default function ClientDetailPage() {
         )}
 
         {/* Tabs */}
-        <div>
-          <nav className="flex space-x-1 sm:space-x-2 overflow-x-auto pb-2">
+        <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+          <nav className="flex space-x-1 pb-2 scrollbar-hide min-w-max">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`py-2 sm:py-2.5 px-2 sm:px-4 font-medium text-xs sm:text-sm rounded-lg transition-all whitespace-nowrap flex-shrink-0 ${
+                className={`py-1 sm:py-1.5 md:py-2 px-2 sm:px-2.5 md:px-4 font-medium text-[9px] sm:text-[10px] md:text-xs lg:text-sm rounded-lg transition-all whitespace-nowrap flex-shrink-0 ${
                   activeTab === tab.id
                     ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30'
                     : 'text-gray-400 hover:text-gray-300 hover:bg-dark-800/50'
@@ -397,18 +400,20 @@ export default function ClientDetailPage() {
         {/* Tab Content */}
         {activeTab === 'info' && (
           <>
-            <Card>
+            <Card className="p-3 sm:p-4 md:p-6">
               <div className="space-y-3 sm:space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
-                  <div className="flex items-center gap-3 sm:gap-4">
-                    <div className="h-16 w-16 sm:h-20 sm:w-20 rounded-full bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center flex-shrink-0">
-                      <span className="text-2xl sm:text-3xl font-bold text-white">
+                <div className="flex flex-col gap-2.5 sm:gap-3">
+                  <div className="flex items-center gap-2.5 sm:gap-3">
+                    <div className="h-12 w-12 sm:h-14 sm:w-14 md:h-16 md:w-16 rounded-full bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center flex-shrink-0">
+                      <span className="text-lg sm:text-xl md:text-2xl font-bold text-white">
                         {client.name.charAt(0).toUpperCase()}
                       </span>
                     </div>
-                    <div>
-                      <h2 className="text-lg sm:text-xl font-semibold text-gray-50">{client.name}</h2>
-                      <Badge variant={clientStatus.variant} className="text-xs sm:text-sm mt-1">
+                    <div className="flex-1 min-w-0">
+                      <h2 className="text-sm sm:text-base md:text-lg font-semibold text-gray-50 truncate">
+                        {client.name}
+                      </h2>
+                      <Badge variant={clientStatus.variant} className="text-[9px] sm:text-[10px] mt-1">
                         {clientStatus.label}
                       </Badge>
                     </div>
@@ -417,54 +422,58 @@ export default function ClientDetailPage() {
                     <Button 
                       variant="secondary" 
                       onClick={() => setShowEditModal(true)}
-                      className="w-full sm:w-auto text-xs sm:text-sm"
+                      className="w-full text-xs sm:text-sm py-1.5 sm:py-2"
                     >
-                      <Edit className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-2" />
-                      <span className="hidden sm:inline ml-1">Editar</span>
+                      <Edit className="w-3 h-3 sm:w-3.5 sm:h-3.5 mr-1.5" />
+                      <span>Editar</span>
                     </Button>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-3 sm:pt-4">
+                <div className="grid grid-cols-1 gap-2.5 sm:gap-3 pt-2 sm:pt-3 border-t border-dark-700">
                   <div>
-                    <p className="text-sm text-gray-400">Email</p>
-                    <p className="font-medium text-gray-50">{client.email || '-'}</p>
+                    <p className="text-xs sm:text-sm text-gray-400 mb-1">Email</p>
+                    <p className="text-sm sm:text-base font-medium text-gray-50 break-all">
+                      {client.email || '-'}
+                    </p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-400">Teléfono</p>
+                    <p className="text-xs sm:text-sm text-gray-400 mb-1">Teléfono</p>
                     {client.phone ? (
                       <a
                         href={`https://wa.me/${client.phone.replace(/\D/g, '')}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-2 font-medium text-primary-400 hover:text-primary-300 transition-colors"
+                        className="flex items-center gap-2 text-sm sm:text-base font-medium text-primary-400 hover:text-primary-300 transition-colors"
                       >
-                        <Phone className="w-4 h-4" />
+                        <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
                         <span>{client.phone}</span>
                       </a>
                     ) : (
-                      <p className="font-medium text-gray-50">-</p>
+                      <p className="text-sm sm:text-base font-medium text-gray-50">-</p>
                     )}
                   </div>
                   <div>
-                    <p className="text-sm text-gray-400">Cédula / Documento</p>
-                    <p className="font-medium text-gray-50">{client.documentId || '-'}</p>
+                    <p className="text-xs sm:text-sm text-gray-400 mb-1">Cédula / Documento</p>
+                    <p className="text-sm sm:text-base font-medium text-gray-50 break-all">
+                      {client.documentId || '-'}
+                    </p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-400">Fecha de nacimiento</p>
-                    <p className="font-medium text-gray-50">
+                    <p className="text-xs sm:text-sm text-gray-400 mb-1">Fecha de nacimiento</p>
+                    <p className="text-sm sm:text-base font-medium text-gray-50">
                       {client.birthDate ? format(new Date(client.birthDate), 'dd/MM/yyyy') : '-'}
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-400">Peso inicial</p>
-                    <p className="font-medium text-gray-50">
+                    <p className="text-xs sm:text-sm text-gray-400 mb-1">Peso inicial</p>
+                    <p className="text-sm sm:text-base font-medium text-gray-50">
                       {client.initialWeight ? `${client.initialWeight} kg` : '-'}
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-400">Fecha de registro</p>
-                    <p className="font-medium text-gray-50">
+                    <p className="text-xs sm:text-sm text-gray-400 mb-1">Fecha de registro</p>
+                    <p className="text-sm sm:text-base font-medium text-gray-50">
                       {format(new Date(client.createdAt), 'dd/MM/yyyy')}
                     </p>
                   </div>
@@ -473,90 +482,103 @@ export default function ClientDetailPage() {
             </Card>
 
             {/* Sección de Gráficas */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 md:gap-6">
               {/* Gráfica de Pagos Realizados */}
-              <Card>
-                <div className="space-y-3 sm:space-y-4">
-                  <h3 className="text-base sm:text-lg font-semibold text-gray-50">Pagos Realizados</h3>
+              <Card className="p-3 sm:p-4 md:p-6">
+                <div className="space-y-2 sm:space-y-3">
+                  <h3 className="text-xs sm:text-sm md:text-base font-semibold text-gray-50">Pagos Realizados</h3>
                   {paymentsChartData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={250}>
-                      <BarChart data={paymentsChartData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                        <XAxis 
-                          dataKey="month" 
-                          stroke="#9CA3AF"
-                          style={{ fontSize: '11px' }}
-                          tick={{ fill: '#9CA3AF' }}
-                          angle={-45}
-                          textAnchor="end"
-                          height={60}
-                        />
-                        <YAxis 
-                          stroke="#9CA3AF"
-                          style={{ fontSize: '11px' }}
-                          tick={{ fill: '#9CA3AF' }}
-                          tickFormatter={(value) => `$${value / 1000}k`}
-                        />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: '#1F2937',
-                            border: '1px solid #374151',
-                            borderRadius: '8px',
-                            color: '#F3F4F6'
-                          }}
-                          labelStyle={{ color: '#9CA3AF' }}
-                          formatter={(value: number) => `$${value.toLocaleString()}`}
-                        />
-                        <Bar dataKey="amount" fill="#EF4444" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
+                    <div className="w-full h-[180px] sm:h-[220px] md:h-[250px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={paymentsChartData}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                          <XAxis 
+                            dataKey="month" 
+                            stroke="#9CA3AF"
+                            style={{ fontSize: '9px' }}
+                            tick={{ fill: '#9CA3AF', fontSize: 9 }}
+                            angle={-45}
+                            textAnchor="end"
+                            height={45}
+                          />
+                          <YAxis 
+                            stroke="#9CA3AF"
+                            style={{ fontSize: '9px' }}
+                            tick={{ fill: '#9CA3AF', fontSize: 9 }}
+                            tickFormatter={(value) => `$${value / 1000}k`}
+                            width={30}
+                          />
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: '#1F2937',
+                              border: '1px solid #374151',
+                              borderRadius: '8px',
+                              color: '#F3F4F6',
+                              fontSize: '11px',
+                              padding: '6px 8px'
+                            }}
+                            labelStyle={{ color: '#9CA3AF', fontSize: '10px' }}
+                            formatter={(value: number) => [`$${value.toLocaleString()}`, 'Monto']}
+                          />
+                          <Bar dataKey="amount" fill="#EF4444" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
                   ) : (
-                    <div className="h-64 flex items-center justify-center">
-                      <p className="text-gray-400 text-sm">No hay datos de pagos</p>
+                    <div className="h-[180px] sm:h-[220px] flex items-center justify-center">
+                      <p className="text-gray-400 text-xs sm:text-sm">No hay datos de pagos</p>
                     </div>
                   )}
                 </div>
               </Card>
 
               {/* Gráfica de Asistencia */}
-              <Card>
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-50">Asistencia</h3>
+              <Card className="p-3 sm:p-4 md:p-6">
+                <div className="space-y-2 sm:space-y-3">
+                  <h3 className="text-xs sm:text-sm md:text-base font-semibold text-gray-50">Asistencia</h3>
                   {attendanceChartData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={250}>
-                      <BarChart data={attendanceChartData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                        <XAxis 
-                          dataKey="month" 
-                          stroke="#9CA3AF"
-                          style={{ fontSize: '11px' }}
-                          tick={{ fill: '#9CA3AF' }}
-                          angle={-45}
-                          textAnchor="end"
-                          height={60}
-                        />
-                        <YAxis 
-                          stroke="#9CA3AF"
-                          style={{ fontSize: '11px' }}
-                          tick={{ fill: '#9CA3AF' }}
-                        />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: '#1F2937',
-                            border: '1px solid #374151',
-                            borderRadius: '8px',
-                            color: '#F3F4F6'
-                          }}
-                          labelStyle={{ color: '#9CA3AF' }}
-                        />
-                        <Legend />
-                        <Bar dataKey="present" stackId="a" fill="#10B981" name="Presente" radius={[0, 0, 0, 0]} />
-                        <Bar dataKey="absent" stackId="a" fill="#EF4444" name="Ausente" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
+                    <div className="w-full h-[180px] sm:h-[220px] md:h-[250px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={attendanceChartData}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                          <XAxis 
+                            dataKey="month" 
+                            stroke="#9CA3AF"
+                            style={{ fontSize: '9px' }}
+                            tick={{ fill: '#9CA3AF', fontSize: 9 }}
+                            angle={-45}
+                            textAnchor="end"
+                            height={45}
+                          />
+                          <YAxis 
+                            stroke="#9CA3AF"
+                            style={{ fontSize: '9px' }}
+                            tick={{ fill: '#9CA3AF', fontSize: 9 }}
+                            width={30}
+                          />
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: '#1F2937',
+                              border: '1px solid #374151',
+                              borderRadius: '8px',
+                              color: '#F3F4F6',
+                              fontSize: '11px',
+                              padding: '6px 8px'
+                            }}
+                            labelStyle={{ color: '#9CA3AF', fontSize: '10px' }}
+                          />
+                          <Legend 
+                            wrapperStyle={{ fontSize: '9px' }}
+                            iconSize={8}
+                          />
+                          <Bar dataKey="present" stackId="a" fill="#10B981" name="Presente" radius={[0, 0, 0, 0]} />
+                          <Bar dataKey="absent" stackId="a" fill="#EF4444" name="Ausente" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
                   ) : (
-                    <div className="h-64 flex items-center justify-center">
-                      <p className="text-gray-400 text-sm">No hay datos de asistencia</p>
+                    <div className="h-[180px] sm:h-[220px] flex items-center justify-center">
+                      <p className="text-gray-400 text-xs sm:text-sm">No hay datos de asistencia</p>
                     </div>
                   )}
                 </div>

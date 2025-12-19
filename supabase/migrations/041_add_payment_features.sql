@@ -54,3 +54,4 @@ CREATE INDEX IF NOT EXISTS idx_payments_payment_month
 CREATE INDEX IF NOT EXISTS idx_payments_is_partial 
   ON public.payments(is_partial);
 
+

@@ -35,3 +35,4 @@ EXCEPTION
     RAISE WARNING 'Error al actualizar get_user_gym_id(): %', SQLERRM;
 END $$;
 
+

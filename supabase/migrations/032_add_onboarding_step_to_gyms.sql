@@ -47,3 +47,4 @@ SET onboarding_step = CASE
 END
 WHERE onboarding_step IS NULL OR onboarding_step = 1;
 
+

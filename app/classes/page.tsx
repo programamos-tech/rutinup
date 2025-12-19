@@ -169,35 +169,39 @@ export default function ClassesPage() {
 
         {/* Filtros */}
         <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-          <Select
-            label="Entrenador"
-            options={[
-              { value: 'all', label: 'Todos' },
-              ...trainers.map((t) => ({ value: t.id, label: t.name })),
-            ]}
-            value={filterTrainer}
-            onChange={(e) => setFilterTrainer(e.target.value)}
-            className="w-full sm:w-48"
-          />
-          <div className="flex gap-2 items-end">
+          <div className="w-full sm:w-48">
+            <Select
+              label="Entrenador"
+              options={[
+                { value: 'all', label: 'Todos' },
+                ...trainers.map((t) => ({ value: t.id, label: t.name })),
+              ]}
+              value={filterTrainer}
+              onChange={(e) => setFilterTrainer(e.target.value)}
+            />
+          </div>
+          <div className="flex gap-1.5 sm:gap-2 items-end">
             <Button
               variant={filterStatus === 'all' ? 'primary' : 'secondary'}
               onClick={() => setFilterStatus('all')}
-              className="flex-1 sm:flex-none text-xs sm:text-sm"
+              size="sm"
+              className="flex-1 sm:flex-none text-[11px] sm:text-xs px-2 sm:px-4"
             >
               Todas
             </Button>
             <Button
               variant={filterStatus === 'active' ? 'primary' : 'secondary'}
               onClick={() => setFilterStatus('active')}
-              className="flex-1 sm:flex-none text-xs sm:text-sm"
+              size="sm"
+              className="flex-1 sm:flex-none text-[11px] sm:text-xs px-2 sm:px-4"
             >
               Activas
             </Button>
             <Button
               variant={filterStatus === 'inactive' ? 'primary' : 'secondary'}
               onClick={() => setFilterStatus('inactive')}
-              className="flex-1 sm:flex-none text-xs sm:text-sm"
+              size="sm"
+              className="flex-1 sm:flex-none text-[11px] sm:text-xs px-2 sm:px-4"
             >
               Inactivas
             </Button>
@@ -206,102 +210,106 @@ export default function ClassesPage() {
 
         {/* Vista de Calendario */}
         {viewMode === 'calendar' && (
-          <Card>
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4 sm:mb-6">
-              <div className="flex items-center gap-2 sm:gap-4 justify-center sm:justify-start">
+          <Card className="p-3 sm:p-4 md:p-6">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-3 mb-3 sm:mb-4 md:mb-6">
+              <div className="flex items-center gap-2 justify-center sm:justify-start">
                 <Button
                   variant="secondary"
                   onClick={() => setCurrentWeek(subWeeks(currentWeek, 1))}
-                  className="p-2"
+                  className="p-1.5 sm:p-2 min-w-0"
                 >
-                  <ChevronLeft className="w-4 h-4" />
+                  <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </Button>
-                <h2 className="text-sm sm:text-lg font-semibold text-gray-50 whitespace-nowrap">
+                <h2 className="text-xs sm:text-sm md:text-lg font-semibold text-gray-50 whitespace-nowrap px-1">
                   {format(weekStart, 'dd MMM')} - {format(addDays(weekStart, 6), 'dd MMM yyyy')}
                 </h2>
                 <Button
                   variant="secondary"
                   onClick={() => setCurrentWeek(addWeeks(currentWeek, 1))}
-                  className="p-2"
+                  className="p-1.5 sm:p-2 min-w-0"
                 >
-                  <ChevronRight className="w-4 h-4" />
+                  <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </Button>
               </div>
               <Button
                 variant="secondary"
                 onClick={() => setCurrentWeek(new Date())}
-                className="text-xs sm:text-sm"
+                className="text-xs sm:text-sm py-1.5 sm:py-2"
               >
                 Hoy
               </Button>
             </div>
 
-            <div className="grid grid-cols-7 gap-2">
-              {/* Headers de días */}
-              {weekDays.map((day, index) => {
-                const dayOfWeek = day.getDay(); // 0 = Domingo, 1 = Lunes, etc.
-                return (
-                  <div key={index} className="text-center py-2">
-                    <p className="text-xs text-gray-400 font-medium">{DAYS_SHORT[dayOfWeek]}</p>
-                    <p className="text-sm text-gray-300 font-semibold mt-1">
-                      {format(day, 'd')}
-                    </p>
-                  </div>
-                );
-              })}
-
-              {/* Clases por día */}
-              {weekDays.map((day, dayIndex) => {
-                const dayClasses = getClassesForDay(day);
-                return (
-                  <div
-                    key={dayIndex}
-                    className="min-h-[200px] p-2 bg-dark-800/30 rounded-lg border border-dark-700/30"
-                  >
-                    {dayClasses.length === 0 ? (
-                      <p className="text-xs text-gray-500 text-center mt-2">Sin clases</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {dayClasses.map((classItem) => {
-                          const trainer = trainers.find((t) => t.id === classItem.trainerId);
-                          const enrollmentCount = getEnrollmentCount(classItem.id);
-                          const isFull = enrollmentCount >= classItem.capacity;
-                          
-                          return (
-                            <div
-                              key={classItem.id}
-                              className={`p-2 rounded text-xs cursor-pointer transition-all ${
-                                classItem.color 
-                                  ? `bg-[${classItem.color}]/20 border border-[${classItem.color}]/50`
-                                  : 'bg-primary-500/20 border border-primary-500/50'
-                              } ${isFull ? 'opacity-60' : ''}`}
-                              onClick={() => {
-                                setSelectedClass(classItem);
-                                setSelectedDateForAttendance(day);
-                                setShowAttendanceModal(true);
-                              }}
-                            >
-                              <p className="font-semibold text-gray-50">{classItem.name}</p>
-                              <p className="text-gray-400">{formatTime(classItem.startTime)}</p>
-                              <div className="flex items-center gap-1">
-                                <p className="text-gray-500">
-                                  {trainer?.name} • {enrollmentCount} de {classItem.capacity} inscritos
-                                </p>
-                                <Tooltip 
-                                  content={`${enrollmentCount} personas inscritas de una capacidad máxima de ${classItem.capacity}`}
-                                  icon
-                                  position="top"
-                                  className="ml-1"
-                                />
-                              </div>
-                            </div>
-                          );
-                        })}
+            <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0 pb-2">
+              <div className="min-w-[800px] sm:min-w-0">
+                <div className="grid grid-cols-7 gap-2">
+                  {/* Headers de días */}
+                  {weekDays.map((day, index) => {
+                    const dayOfWeek = day.getDay(); // 0 = Domingo, 1 = Lunes, etc.
+                    return (
+                      <div key={index} className="text-center py-2">
+                        <p className="text-xs text-gray-400 font-medium">{DAYS_SHORT[dayOfWeek]}</p>
+                        <p className="text-sm text-gray-300 font-semibold mt-1">
+                          {format(day, 'd')}
+                        </p>
                       </div>
-                    )}
-                  </div>
-                );
-              })}
+                    );
+                  })}
+
+                  {/* Clases por día */}
+                  {weekDays.map((day, dayIndex) => {
+                    const dayClasses = getClassesForDay(day);
+                    return (
+                      <div
+                        key={dayIndex}
+                        className="min-h-[180px] p-2 bg-dark-800/30 rounded-lg border border-dark-700/30"
+                      >
+                        {dayClasses.length === 0 ? (
+                          <p className="text-xs text-gray-500 text-center mt-2">Sin clases</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {dayClasses.map((classItem) => {
+                              const trainer = trainers.find((t) => t.id === classItem.trainerId);
+                              const enrollmentCount = getEnrollmentCount(classItem.id);
+                              const isFull = enrollmentCount >= classItem.capacity;
+                              
+                              return (
+                                <div
+                                  key={classItem.id}
+                                  className={`p-2 rounded text-xs cursor-pointer transition-all ${
+                                    classItem.color 
+                                      ? `bg-[${classItem.color}]/20 border border-[${classItem.color}]/50`
+                                      : 'bg-primary-500/20 border border-primary-500/50'
+                                  } ${isFull ? 'opacity-60' : ''}`}
+                                  onClick={() => {
+                                    setSelectedClass(classItem);
+                                    setSelectedDateForAttendance(day);
+                                    setShowAttendanceModal(true);
+                                  }}
+                                >
+                                  <p className="font-semibold text-gray-50 leading-tight mb-1 line-clamp-2">{classItem.name}</p>
+                                  <p className="text-gray-400 leading-tight mb-1">{formatTime(classItem.startTime)}</p>
+                                  <div className="flex items-center gap-1">
+                                    <p className="text-gray-500 leading-tight text-[10px]">
+                                      {enrollmentCount}/{classItem.capacity}
+                                    </p>
+                                    <Tooltip 
+                                      content={`${enrollmentCount} personas inscritas de una capacidad máxima de ${classItem.capacity}. Entrenador: ${trainer?.name || 'No asignado'}`}
+                                      icon
+                                      position="top"
+                                      className="ml-0.5"
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </Card>
         )}

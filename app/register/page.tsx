@@ -224,9 +224,9 @@ export default function RegisterPage() {
             <p className="text-gray-400 font-medium -mt-1 mb-2" style={{ fontSize: 'calc(2.25rem * 0.28)' }}>Administra tu Gimnasio</p>
           </div>
 
-          <div className="mb-8">
-            <h2 className="text-3xl font-bold text-gray-50 mb-2">Crea tu cuenta</h2>
-            <p className="text-gray-400">
+          <div className="mb-6 sm:mb-8">
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-50 mb-2">Crea tu cuenta</h2>
+            <p className="text-sm sm:text-base text-gray-400">
               Comienza a gestionar tu gimnasio en minutos
             </p>
           </div>
@@ -237,7 +237,7 @@ export default function RegisterPage() {
             </div>
           )}
 
-          <form onSubmit={handleRegister} className="space-y-5">
+          <form onSubmit={handleRegister} className="space-y-4 sm:space-y-5">
             <Input
               label="Nombre del gimnasio"
               type="text"

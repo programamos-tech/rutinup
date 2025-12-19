@@ -251,3 +251,4 @@
 5. **Localización importa**: Adaptarse a métodos de pago y comunicación locales
 
 
+

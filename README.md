@@ -36,3 +36,4 @@ Esta carpeta contiene la documentación completa de producto y UX para el MVP de
 - Enfocado en gimnasios pequeños y medianos en Latinoamérica
 
 
+

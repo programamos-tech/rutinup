@@ -18,3 +18,4 @@ ORDER BY ordinal_position;
 SELECT COUNT(*) as total FROM suggested_plan_templates;
 
 
+

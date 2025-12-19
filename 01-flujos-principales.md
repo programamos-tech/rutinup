@@ -252,3 +252,4 @@ Si se incluye:
 - **Cancelada**: Cancelada por el gimnasio
 
 
+

@@ -284,3 +284,4 @@
 5. **Transacciones**: Operaciones críticas (pago + activación de membresía) deben ser atómicas
 
 
+

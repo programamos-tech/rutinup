@@ -104,135 +104,135 @@ export default function DashboardPage() {
       <div className="space-y-12">
         {/* Header Section */}
         <div className="space-y-2">
-          <p className="text-sm text-gray-400">
+          <p className="text-xs sm:text-sm text-gray-400">
             {format(new Date(), "EEEE, d 'de' MMMM 'de' yyyy")}
           </p>
-          <h1 className="text-3xl font-bold text-gray-50">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-50">
             {gym?.name || 'Dashboard'}
           </h1>
         </div>
 
         {/* Métricas principales - Reestructuradas */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           {/* Membresías Activas */}
           <Card className="metric-card">
-            <div className="space-y-3">
+            <div className="space-y-2 sm:space-y-3">
               <div className="flex items-center justify-between">
-                <p className="text-sm font-medium text-gray-400">Membresías Activas</p>
-                <div className="p-2 bg-primary-500/10 rounded-lg">
-                  <Activity className="w-4 h-4 text-primary-400" />
+                <p className="text-xs sm:text-sm font-medium text-gray-400">Membresías Activas</p>
+                <div className="p-1.5 sm:p-2 bg-primary-500/10 rounded-lg">
+                  <Activity className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary-400" />
                 </div>
               </div>
-              <p className="text-4xl font-bold text-gray-50">{metrics.activeMemberships}</p>
-              <p className="text-xs text-gray-500">Clientes con membresía vigente</p>
+              <p className="text-3xl sm:text-4xl font-bold text-gray-50">{metrics.activeMemberships}</p>
+              <p className="text-[10px] sm:text-xs text-gray-500">Clientes con membresía vigente</p>
             </div>
           </Card>
 
           {/* Ingresos del Día */}
           <Card className="metric-card">
-            <div className="space-y-3">
+            <div className="space-y-2 sm:space-y-3">
               <div className="flex items-center justify-between">
-                <p className="text-sm font-medium text-gray-400">Ingresos de Hoy</p>
-                <div className="p-2 bg-success-500/10 rounded-lg">
-                  <DollarSign className="w-4 h-4 text-success-400" />
+                <p className="text-xs sm:text-sm font-medium text-gray-400">Ingresos de Hoy</p>
+                <div className="p-1.5 sm:p-2 bg-success-500/10 rounded-lg">
+                  <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-success-400" />
                 </div>
               </div>
-              <p className="text-4xl font-bold text-gray-50">
+              <p className="text-3xl sm:text-4xl font-bold text-gray-50">
                 ${metrics.dailyRevenue.toLocaleString()}
               </p>
-              <p className="text-xs text-gray-500">Recaudado hoy</p>
+              <p className="text-[10px] sm:text-xs text-gray-500">Recaudado hoy</p>
             </div>
           </Card>
 
           {/* Ingresos del Mes */}
           <Card className="metric-card">
-            <div className="space-y-3">
+            <div className="space-y-2 sm:space-y-3">
               <div className="flex items-center justify-between">
-                <p className="text-sm font-medium text-gray-400">Ingresos del Mes</p>
-                <div className="p-2 bg-accent-500/10 rounded-lg">
-                  <TrendingUp className="w-4 h-4 text-accent-400" />
+                <p className="text-xs sm:text-sm font-medium text-gray-400">Ingresos del Mes</p>
+                <div className="p-1.5 sm:p-2 bg-accent-500/10 rounded-lg">
+                  <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-accent-400" />
                 </div>
               </div>
-              <p className="text-4xl font-bold text-gray-50">
+              <p className="text-3xl sm:text-4xl font-bold text-gray-50">
                 ${metrics.monthlyRevenue.toLocaleString()}
               </p>
-              <p className="text-xs text-gray-500">Total del mes actual</p>
+              <p className="text-[10px] sm:text-xs text-gray-500">Total del mes actual</p>
             </div>
           </Card>
 
           {/* Clases de Hoy */}
           <Card className="metric-card">
-            <div className="space-y-3">
+            <div className="space-y-2 sm:space-y-3">
               <div className="flex items-center justify-between">
-                <p className="text-sm font-medium text-gray-400">Clases de Hoy</p>
-                <div className="p-2 bg-warning-500/10 rounded-lg">
-                  <Clock className="w-4 h-4 text-warning-400" />
+                <p className="text-xs sm:text-sm font-medium text-gray-400">Clases de Hoy</p>
+                <div className="p-1.5 sm:p-2 bg-warning-500/10 rounded-lg">
+                  <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-warning-400" />
                 </div>
               </div>
-              <p className="text-4xl font-bold text-gray-50">{metrics.todayClasses}</p>
-              <p className="text-xs text-gray-500">Programadas para hoy</p>
+              <p className="text-3xl sm:text-4xl font-bold text-gray-50">{metrics.todayClasses}</p>
+              <p className="text-[10px] sm:text-xs text-gray-500">Programadas para hoy</p>
             </div>
           </Card>
 
           {/* Nuevos Clientes */}
           <Card className="metric-card">
-            <div className="space-y-3">
+            <div className="space-y-2 sm:space-y-3">
               <div className="flex items-center justify-between">
-                <p className="text-sm font-medium text-gray-400">Nuevos Clientes</p>
-                <div className="p-2 bg-primary-500/10 rounded-lg">
-                  <UserPlus className="w-4 h-4 text-primary-400" />
+                <p className="text-xs sm:text-sm font-medium text-gray-400">Nuevos Clientes</p>
+                <div className="p-1.5 sm:p-2 bg-primary-500/10 rounded-lg">
+                  <UserPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary-400" />
                 </div>
               </div>
-              <p className="text-4xl font-bold text-gray-50">{metrics.newClientsThisMonth}</p>
-              <p className="text-xs text-gray-500">Este mes</p>
+              <p className="text-3xl sm:text-4xl font-bold text-gray-50">{metrics.newClientsThisMonth}</p>
+              <p className="text-[10px] sm:text-xs text-gray-500">Este mes</p>
             </div>
           </Card>
 
           {/* Clientes Activos */}
           <Card className="metric-card">
-            <div className="space-y-3">
+            <div className="space-y-2 sm:space-y-3">
               <div className="flex items-center justify-between">
-                <p className="text-sm font-medium text-gray-400">Clientes Activos</p>
-                <div className="p-2 bg-success-500/10 rounded-lg">
-                  <Users className="w-4 h-4 text-success-400" />
+                <p className="text-xs sm:text-sm font-medium text-gray-400">Clientes Activos</p>
+                <div className="p-1.5 sm:p-2 bg-success-500/10 rounded-lg">
+                  <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-success-400" />
                 </div>
               </div>
-              <p className="text-4xl font-bold text-gray-50">{metrics.activeClients}</p>
-              <p className="text-xs text-gray-500">Con membresía vigente</p>
+              <p className="text-3xl sm:text-4xl font-bold text-gray-50">{metrics.activeClients}</p>
+              <p className="text-[10px] sm:text-xs text-gray-500">Con membresía vigente</p>
             </div>
           </Card>
         </div>
 
         {/* Membresías próximas a vencer */}
         {upcomingExpirations.length > 0 && (
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-50">
+              <h2 className="text-lg sm:text-xl font-bold text-gray-50">
                 Membresías Próximas a Vencer
               </h2>
-              <Link href="/payments/pending" className="text-sm font-medium text-primary-400 hover:text-primary-300 transition-colors flex items-center gap-1">
+              <Link href="/payments/pending" className="text-xs sm:text-sm font-medium text-primary-400 hover:text-primary-300 transition-colors flex items-center gap-1">
                 Ver todas
-                <ArrowRight className="w-4 h-4" />
+                <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4" />
               </Link>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
               {upcomingExpirations.map((item) => {
                 const endDate = new Date(item.membership.endDate);
                 const daysLeft = Math.ceil((endDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
                 return (
                   <Card key={item.membership.id} className="metric-card">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                       <div className="flex-1">
-                        <p className="font-semibold text-gray-50">{item.client?.name}</p>
-                        <p className="text-sm text-gray-400 mt-1">
+                        <p className="text-sm sm:text-base font-semibold text-gray-50">{item.client?.name}</p>
+                        <p className="text-xs sm:text-sm text-gray-400 mt-1">
                           Vence en {daysLeft} {daysLeft === 1 ? 'día' : 'días'}
                         </p>
-                        <p className="text-xs text-gray-500 mt-0.5">
+                        <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5">
                           {format(endDate, 'dd/MM/yyyy')}
                         </p>
                       </div>
-                      <Link href={`/clients/${item.client?.id}`}>
-                        <Button variant="success" className="text-xs px-4 py-2">
+                      <Link href={`/clients/${item.client?.id}`} className="w-full sm:w-auto">
+                        <Button variant="success" className="text-xs px-4 py-2 w-full sm:w-auto">
                           Renovar
                         </Button>
                       </Link>
@@ -245,19 +245,19 @@ export default function DashboardPage() {
         )}
 
         {/* Acciones rápidas */}
-        <div className="space-y-4">
-          <h2 className="text-xl font-bold text-gray-50">
+        <div className="space-y-3 sm:space-y-4">
+          <h2 className="text-lg sm:text-xl font-bold text-gray-50">
             Acciones Rápidas
           </h2>
-          <div className="flex gap-3 flex-wrap">
-            <Link href="/clients/new">
-              <Button variant="primary">Agregar Cliente</Button>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
+            <Link href="/clients/new" className="w-full">
+              <Button variant="primary" className="w-full text-xs sm:text-sm">Agregar Cliente</Button>
             </Link>
-            <Link href="/classes/new">
-              <Button variant="primary">Crear Clase</Button>
+            <Link href="/classes/new" className="w-full">
+              <Button variant="primary" className="w-full text-xs sm:text-sm">Crear Clase</Button>
             </Link>
-            <Link href="/payments/new">
-              <Button variant="primary">Registrar Pago</Button>
+            <Link href="/payments/new" className="w-full">
+              <Button variant="primary" className="w-full text-xs sm:text-sm">Registrar Pago</Button>
             </Link>
           </div>
         </div>

@@ -334,3 +334,4 @@ AND (fecha_fin IS NULL OR fecha_fin >= CURRENT_DATE)
 - [ ] Navegación desde métricas a detalles
 
 
+

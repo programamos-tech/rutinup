@@ -370,7 +370,7 @@ export default function MembershipsPage() {
                     {/* Servicios incluidos */}
                     <div className="space-y-2 mb-3 sm:mb-4">
                       <h4 className="text-xs font-semibold text-gray-400 uppercase">Incluye:</h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 gap-2">
                         {plan.includes.freeWeights && (
                           <div className="flex items-center gap-2 text-sm text-gray-300">
                             <Check className="w-4 h-4 text-success-400" />

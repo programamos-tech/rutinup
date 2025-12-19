@@ -170,3 +170,4 @@ supabase db push
 6. ⏳ Migración de datos desde localStorage
 
 
+

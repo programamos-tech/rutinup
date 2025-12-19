@@ -22,3 +22,4 @@ CREATE POLICY "Admins can insert users in their gym"
   );
 
 
+

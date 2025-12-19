@@ -253,3 +253,4 @@ CREATE POLICY "gym_accounts_update_own"
 -- ✔ Registro completo en un solo paso
 
 
+
