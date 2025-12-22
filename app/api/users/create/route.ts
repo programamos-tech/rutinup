@@ -1,5 +1,12 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { Database } from '@/lib/supabase/types';
+
+type GymAccountRole = Database['public']['Tables']['gym_accounts']['Row']['role'];
+type CurrentUser = {
+  role: GymAccountRole;
+  gym_id: string;
+} | null;
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,7 +24,7 @@ export async function POST(request: NextRequest) {
       .from('gym_accounts')
       .select('role, gym_id')
       .eq('id', user.id)
-      .single();
+      .single() as { data: CurrentUser };
 
     if (!currentUser || currentUser.role !== 'admin' || currentUser.gym_id !== gymId) {
       return NextResponse.json({ error: 'No tienes permisos' }, { status: 403 });
@@ -104,5 +111,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message || 'Error al crear usuario' }, { status: 500 });
   }
 }
+
 
 

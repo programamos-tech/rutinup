@@ -1,5 +1,15 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { Database } from '@/lib/supabase/types';
+
+type GymAccountRole = Database['public']['Tables']['gym_accounts']['Row']['role'];
+type CurrentUser = {
+  role: GymAccountRole;
+  gym_id: string;
+} | null;
+type TargetUser = {
+  gym_id: string;
+} | null;
 
 export async function DELETE(request: NextRequest) {
   try {
@@ -25,13 +35,13 @@ export async function DELETE(request: NextRequest) {
       .from('gym_accounts')
       .select('role, gym_id')
       .eq('id', user.id)
-      .single();
+      .single() as { data: CurrentUser };
 
     const { data: targetUser } = await supabase
       .from('gym_accounts')
       .select('gym_id')
       .eq('id', userId)
-      .single();
+      .single() as { data: TargetUser };
 
     if (!currentUser || !targetUser || currentUser.role !== 'admin' || currentUser.gym_id !== targetUser.gym_id) {
       return NextResponse.json({ error: 'No tienes permisos' }, { status: 403 });
@@ -79,5 +89,6 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: error.message || 'Error al eliminar usuario' }, { status: 500 });
   }
 }
+
 
 
