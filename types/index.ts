@@ -132,6 +132,7 @@ export interface Payment {
   clientId: string;
   membershipId?: string; // DEPRECATED: usar invoiceId en su lugar
   invoiceId?: string; // Nueva forma: asociar pago a factura
+  cashClosingId?: string; // ID del cierre de caja asociado
   amount: number;
   method: 'cash' | 'transfer' | 'card' | 'other';
   paymentDate: Date;
@@ -311,6 +312,27 @@ export interface InvoiceItem {
   subtotal: number; // quantity * unitPrice
   discount: number;
   total: number; // subtotal - discount
+  createdAt: Date;
+}
+
+// =====================================================
+// SISTEMA DE LOGS/AUDITORÍA
+// =====================================================
+
+export interface AuditLog {
+  id: string;
+  gymId: string;
+  userId: string;
+  user?: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  actionType: 'create' | 'update' | 'delete' | 'login' | 'logout' | 'payment' | 'sale' | 'cancel';
+  entityType: string; // 'client', 'membership', 'payment', 'product', 'class', etc.
+  entityId?: string; // ID de la entidad afectada
+  description: string; // Descripción legible de la acción
+  metadata?: Record<string, any>; // Información adicional
   createdAt: Date;
 }
 

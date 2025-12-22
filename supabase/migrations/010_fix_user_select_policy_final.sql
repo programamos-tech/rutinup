@@ -31,3 +31,6 @@ CREATE POLICY "Users can view users from their gym"
   );
 
 
+
+
+

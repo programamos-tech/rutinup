@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { useRouter } from 'next/navigation';
+import { Eye, EyeOff } from 'lucide-react';
 
 export default function LoginPage() {
   const { signIn, loading: authLoading } = useAuth();
@@ -15,6 +16,7 @@ export default function LoginPage() {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,7 +47,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row bg-dark-900">
+    <div className="min-h-screen flex flex-col lg:flex-row bg-white dark:bg-dark-900">
       {/* Left Side - Branding */}
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary-600 to-primary-800 items-center justify-center p-12 relative">
         <div className="text-center relative z-10">
@@ -63,7 +65,7 @@ export default function LoginPage() {
       </div>
 
       {/* Right Side - Form */}
-      <div className="flex-1 lg:w-1/2 bg-dark-900 flex items-center justify-center p-6 lg:p-12">
+      <div className="flex-1 lg:w-1/2 bg-white dark:bg-dark-900 flex items-center justify-center p-6 lg:p-12">
         <div className="w-full max-w-md">
           {/* Mobile Logo */}
           <div className="lg:hidden mb-8 text-center">
@@ -71,21 +73,21 @@ export default function LoginPage() {
               <span className="bg-gradient-to-r from-primary-500 to-primary-600 bg-clip-text text-transparent">
                 RUTIN
               </span>
-              <span className="text-gray-50">UP</span>
+              <span className="text-gray-900 dark:text-gray-50">UP</span>
             </h1>
-            <p className="text-gray-400 text-sm -mt-1">Administra tu Gimnasio</p>
+            <p className="text-gray-600 dark:text-gray-400 text-sm -mt-1">Administra tu Gimnasio</p>
           </div>
 
           <div className="mb-8">
-            <h2 className="text-3xl font-bold text-gray-50 mb-2">Iniciar Sesión</h2>
-            <p className="text-gray-400">
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-50 mb-2">Iniciar Sesión</h2>
+            <p className="text-gray-600 dark:text-gray-400">
               Ingresa a tu cuenta para continuar
             </p>
           </div>
 
           {errors.general && (
             <div className="mb-6 p-4 bg-danger-500/20 border border-danger-500/50 rounded-lg">
-              <p className="text-sm text-danger-400">{errors.general}</p>
+              <p className="text-sm text-danger-500 dark:text-danger-400">{errors.general}</p>
             </div>
           )}
 
@@ -102,20 +104,34 @@ export default function LoginPage() {
             />
 
             <div>
-              <Input
-                label="Contraseña"
-                type="password"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                error={errors.password}
-                placeholder="••••••••"
-                required
-                disabled={isSubmitting || authLoading}
-              />
+              <div className="relative">
+                <Input
+                  label="Contraseña"
+                  type={showPassword ? "text" : "password"}
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  error={errors.password}
+                  placeholder="••••••••"
+                  required
+                  disabled={isSubmitting || authLoading}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-[38px] text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors focus:outline-none"
+                  tabIndex={-1}
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-5 h-5" />
+                  ) : (
+                    <Eye className="w-5 h-5" />
+                  )}
+                </button>
+              </div>
               <div className="mt-2 text-right">
                 <Link
                   href="/forgot-password"
-                  className="text-sm text-primary-400 hover:text-primary-300 transition-colors"
+                  className="text-sm text-primary-500 dark:text-primary-400 hover:text-primary-600 dark:hover:text-primary-300 transition-colors"
                 >
                   ¿Olvidaste tu contraseña?
                 </Link>
@@ -133,11 +149,11 @@ export default function LoginPage() {
           </form>
 
           <div className="mt-6 text-center">
-            <p className="text-sm text-gray-400">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
               ¿No tienes una cuenta?{' '}
               <Link
                 href="/register"
-                className="text-primary-400 hover:text-primary-300 font-medium transition-colors"
+                className="text-primary-500 dark:text-primary-400 hover:text-primary-600 dark:hover:text-primary-300 font-medium transition-colors"
               >
                 Regístrate aquí
               </Link>
@@ -148,5 +164,3 @@ export default function LoginPage() {
     </div>
   );
 }
-
-

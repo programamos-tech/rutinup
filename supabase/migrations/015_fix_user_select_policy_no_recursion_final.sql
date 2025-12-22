@@ -66,3 +66,6 @@ CREATE POLICY "Users can view users from their gym"
 -- filtering or a different RLS pattern.
 
 
+
+
+

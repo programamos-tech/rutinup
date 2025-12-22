@@ -17,7 +17,7 @@ export function Button({ variant = 'primary', size = 'md', children, className =
   
   const variantClasses = {
     primary: 'bg-primary-500 text-white hover:bg-primary-600',
-    secondary: 'bg-dark-800/50 text-gray-300 hover:bg-dark-800 border border-dark-700',
+    secondary: 'bg-gray-100 dark:bg-dark-800/50 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-dark-800 border border-gray-300 dark:border-dark-700',
     success: 'bg-success-500 text-white hover:bg-success-600',
     danger: 'bg-danger-500 text-white hover:bg-danger-600',
     warning: 'bg-warning-500 text-white hover:bg-warning-600',

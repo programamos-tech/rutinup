@@ -115,3 +115,6 @@ CREATE POLICY "users_update_own"
 -- ✔ Arquitectura SaaS correcta
 
 
+
+
+

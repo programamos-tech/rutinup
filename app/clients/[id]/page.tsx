@@ -11,14 +11,16 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Textarea } from '@/components/ui/Textarea';
 import { useApp } from '@/context/AppContext';
-import { format } from 'date-fns';
+import { format, addMonths, parseISO } from 'date-fns';
+import { calculatePaymentStatus } from '@/utils/paymentCalculations';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Edit, Trash2, Plus, Download, MessageCircle, Check, Phone, CreditCard, AlertCircle, CheckCircle } from 'lucide-react';
 import Link from 'next/link';
 import { generateReceiptPDF, generateWhatsAppMessage, openWhatsApp } from '@/utils/receiptGenerator';
-import { Client } from '@/types';
+import { Client, Payment, Membership } from '@/types';
 import { Loader } from '@/components/ui/Loader';
 import { useAuth } from '@/context/AuthContext';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 export default function ClientDetailPage() {
   const params = useParams();
@@ -50,27 +52,27 @@ export default function ClientDetailPage() {
     updateGoal,
     deleteWeightRecord,
     deleteGoal,
+    addAuditLog,
   } = useApp();
 
   const client = clients.find((c) => c.id === clientId);
   const [activeTab, setActiveTab] = useState<'info' | 'memberships' | 'payments' | 'classes' | 'medical' | 'communication' | 'weight'>('info');
+  const [confirmCancelDialog, setConfirmCancelDialog] = useState<{
+    isOpen: boolean;
+    membershipId: string | null;
+    membershipName: string;
+  }>({
+    isOpen: false,
+    membershipId: null,
+    membershipName: '',
+  });
   const [showEditModal, setShowEditModal] = useState(false);
   const [showMembershipModal, setShowMembershipModal] = useState(false);
   const [showMedicalModal, setShowMedicalModal] = useState(false);
   const [showCommunicationModal, setShowCommunicationModal] = useState(false);
   const [showWeightModal, setShowWeightModal] = useState(false);
   const [showGoalModal, setShowGoalModal] = useState(false);
-  const [hasWaitedForLoad, setHasWaitedForLoad] = useState(false);
-
-  // Esperar un momento después de que se inicialice para dar tiempo a que se carguen los clientes
-  useEffect(() => {
-    if (initialized && !hasWaitedForLoad) {
-      const timer = setTimeout(() => {
-        setHasWaitedForLoad(true);
-      }, 1000); // Esperar 1 segundo para que se carguen los datos
-      return () => clearTimeout(timer);
-    }
-  }, [initialized, hasWaitedForLoad]);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   // Calcular datos del cliente (ANTES de los returns condicionales para cumplir reglas de hooks)
   const clientMemberships = client ? (memberships || []).filter((m) => m && m.clientId === client.id) : [];
@@ -79,6 +81,35 @@ export default function ClientDetailPage() {
   const clientMedicalRecords = client ? (medicalRecords?.filter((r) => r.clientId === client.id) || []) : [];
   const clientCommunications = client ? (communications?.filter((c) => c.clientId === client.id) || []) : [];
   const clientAttendances = client ? (attendances?.filter((a) => a.clientId === client.id) || []) : [];
+
+  // Calcular meses adelantados pagados (meses futuros que ya están pagados)
+  const calculateAdvancePaidMonths = useMemo(() => {
+    if (!client) return 0;
+    
+    const today = new Date();
+    const currentMonth = format(today, 'yyyy-MM');
+    
+    const activeMemberships = clientMemberships.filter(m => m.status === 'active');
+    let totalAdvanceMonths = 0;
+
+    activeMemberships.forEach(membership => {
+      const membershipPayments = clientPayments.filter(
+        p => p.clientId === client.id && 
+             p.membershipId === membership.id &&
+             p.status === 'completed' &&
+             p.paymentMonth
+      );
+
+      // Contar meses pagados que son futuros (después del mes actual)
+      membershipPayments.forEach(payment => {
+        if (payment.paymentMonth && payment.paymentMonth > currentMonth) {
+          totalAdvanceMonths++;
+        }
+      });
+    });
+
+    return totalAdvanceMonths;
+  }, [client, clientMemberships, clientPayments]);
 
   // Calcular estado de pago (considerando TODAS las membresías activas)
   const paymentStatus = useMemo(() => {
@@ -89,152 +120,66 @@ export default function ClientDetailPage() {
     const activeMemberships = clientMemberships.filter(m => m.status === 'active');
     if (activeMemberships.length === 0) return null;
 
-    const today = new Date();
-    let totalExpected = 0;
-    let totalExpectedMonths = 0;
-    let hasOverdue = false;
+    // Calcular estado de pago consolidado de TODAS las membresías activas
+    let totalMonthsOwed = 0;
+    let totalAmountOwed = 0;
+    let totalMonthsPaid = 0;
+    let isOverdue = false;
+    const membershipsWithDebt: Array<{ membership: any; monthsOwed: number; amountOwed: number }> = [];
 
-    // Calcular total esperado de cada membresía activa
     activeMemberships.forEach(membership => {
-      const membershipType = membershipTypes.find(mt => mt.id === membership.membershipTypeId);
+      const membershipType = membershipTypes.find(
+        mt => mt.id === membership.membershipTypeId
+      );
+
       if (!membershipType) return;
 
-      const startDate = membership.startDate;
-      const endDate = membership.endDate;
+      // Calcular estado de pago para esta membresía
+      const calculatedStatus = calculatePaymentStatus(
+        client,
+        membership,
+        membershipType,
+        clientPayments
+      );
 
-      let expectedMonths = 0;
-      if (endDate < today) {
-        hasOverdue = true;
-        const diffTime = endDate.getTime() - startDate.getTime();
-        expectedMonths = Math.ceil(diffTime / (membershipType.durationDays * 24 * 60 * 60 * 1000));
-      } else {
-        const diffTime = today.getTime() - startDate.getTime();
-        expectedMonths = Math.ceil(diffTime / (membershipType.durationDays * 24 * 60 * 60 * 1000));
+      totalMonthsOwed += calculatedStatus.monthsOwed;
+      totalAmountOwed += calculatedStatus.totalOwed;
+      totalMonthsPaid += calculatedStatus.monthsPaid;
+      
+      if (calculatedStatus.isOverdue) {
+        isOverdue = true;
       }
 
-      totalExpected += expectedMonths * membershipType.price;
-      totalExpectedMonths += expectedMonths;
+      if (calculatedStatus.monthsOwed > 0) {
+        membershipsWithDebt.push({
+          membership,
+          monthsOwed: calculatedStatus.monthsOwed,
+          amountOwed: calculatedStatus.totalOwed,
+        });
+      }
     });
-
-    // Sumar TODOS los pagos del cliente para CUALQUIERA de sus membresías activas
-    const allMembershipPayments = clientPayments.filter(
-      p => p.status === 'completed' &&
-      activeMemberships.some(m => m.id === p.membershipId)
-    );
-    const totalPaid = allMembershipPayments.reduce((sum, p) => sum + p.amount, 0);
-
-    // Calcular deuda total
-    const totalAmountOwed = Math.max(0, totalExpected - totalPaid);
-    
-    // Calcular precio promedio por mes para estimar meses adeudados
-    const avgPricePerMonth = totalExpectedMonths > 0 ? totalExpected / totalExpectedMonths : 0;
-    const totalMonthsOwed = avgPricePerMonth > 0 ? Math.ceil(totalAmountOwed / avgPricePerMonth) : 0;
-
-    // Si no hay deuda, retornamos null
-    if (totalMonthsOwed === 0 && totalAmountOwed === 0) {
-      return {
-        monthsOwed: 0,
-        amountOwed: 0,
-        membershipType: null,
-        membership: activeMemberships[0],
-        isOverdue: hasOverdue,
-      };
-    }
 
     return {
       monthsOwed: totalMonthsOwed,
       amountOwed: totalAmountOwed,
-      membershipType: null, // No aplica cuando hay múltiples membresías
-      membership: activeMemberships[0], // Por compatibilidad
-      isOverdue: hasOverdue,
+      membershipType: activeMemberships[0] ? membershipTypes.find(mt => mt.id === activeMemberships[0].membershipTypeId) : null,
+      membership: activeMemberships[0],
+      isOverdue: isOverdue,
+      advancePaidMonths: calculateAdvancePaidMonths,
+      monthsPaid: totalMonthsPaid,
+      totalMemberships: activeMemberships.length,
+      membershipsWithDebt: membershipsWithDebt.length,
     };
-  }, [client, clientMemberships, clientPayments, membershipTypes]);
+  }, [client, clientMemberships, clientPayments, membershipTypes, calculateAdvancePaidMonths]);
 
   // Calcular pagos completados para las gráficas
   const completedPayments = (clientPayments || []).filter((p) => p && p.status === 'completed');
 
 
-  // Preparar datos para gráfica de pagos en el tiempo (useMemo debe estar antes de returns)
-  const paymentsChartData = useMemo(() => {
-    if (!completedPayments || completedPayments.length === 0) return [];
-    
-    try {
-      const sortedPayments = [...completedPayments]
-        .filter((p) => p && p.paymentDate)
-        .sort(
-          (a, b) => {
-            const dateA = a.paymentDate instanceof Date ? a.paymentDate : new Date(a.paymentDate);
-            const dateB = b.paymentDate instanceof Date ? b.paymentDate : new Date(b.paymentDate);
-            return dateA.getTime() - dateB.getTime();
-          }
-        );
+  // Preparar datos para historial de pagos con 3 líneas (a tiempo, con retraso, esperado)
 
-      // Agrupar por mes
-      const monthlyData: Record<string, number> = {};
-      sortedPayments.forEach((payment) => {
-        if (!payment || !payment.paymentDate) return;
-        try {
-          const date = payment.paymentDate instanceof Date ? payment.paymentDate : new Date(payment.paymentDate);
-          if (isNaN(date.getTime())) return;
-          const monthKey = format(date, 'MMM yyyy');
-          monthlyData[monthKey] = (monthlyData[monthKey] || 0) + (payment.amount || 0);
-        } catch (e) {
-          // Ignorar errores de fecha
-          console.error('Error procesando pago:', e);
-        }
-      });
-
-      return Object.entries(monthlyData).map(([month, amount]) => ({
-        month,
-        amount: Math.round(amount),
-      }));
-    } catch (e) {
-      console.error('Error en paymentsChartData:', e);
-      return [];
-    }
-  }, [completedPayments]);
-
-  // Preparar datos para gráfica de asistencia (useMemo debe estar antes de returns)
-  const attendanceChartData = useMemo(() => {
-    if (!clientAttendances || clientAttendances.length === 0) return [];
-    
-    try {
-      // Agrupar por mes
-      const monthlyData: Record<string, { present: number; total: number }> = {};
-      clientAttendances.forEach((attendance) => {
-        if (!attendance || !attendance.date) return;
-        try {
-          // attendance.date puede ser Date o string
-          const date = attendance.date instanceof Date ? attendance.date : new Date(attendance.date);
-          if (isNaN(date.getTime())) return;
-          const monthKey = format(date, 'MMM yyyy');
-          if (!monthlyData[monthKey]) {
-            monthlyData[monthKey] = { present: 0, total: 0 };
-          }
-          monthlyData[monthKey].total += 1;
-          if (attendance.present === true) {
-            monthlyData[monthKey].present += 1;
-          }
-        } catch (e) {
-          // Ignorar errores de fecha
-          console.error('Error procesando asistencia:', e);
-        }
-      });
-
-      return Object.entries(monthlyData).map(([month, data]) => ({
-        month,
-        present: data.present,
-        absent: data.total - data.present,
-        total: data.total,
-      }));
-    } catch (e) {
-      console.error('Error en attendanceChartData:', e);
-      return [];
-    }
-  }, [clientAttendances]);
-
-  // Mostrar loader mientras se inicializa o se cargan los datos
-  if (!initialized || !hasWaitedForLoad || (clients.length === 0 && gym)) {
+  // Mostrar loader solo si no está inicializado y no hay cliente encontrado
+  if (!initialized && !client) {
     return (
       <MainLayout>
         <Loader text="Cargando miembro..." />
@@ -247,7 +192,7 @@ export default function ClientDetailPage() {
     return (
       <MainLayout>
         <div className="text-center py-12">
-          <p className="text-gray-400">Miembro no encontrado</p>
+          <p className="text-gray-600 dark:text-gray-400">Miembro no encontrado</p>
           <Link href="/clients">
             <Button variant="primary" className="mt-4">
               Volver a miembros
@@ -269,6 +214,8 @@ export default function ClientDetailPage() {
     
     // Si el cliente está activo, verificar membresías
     const activeMembership = clientMemberships.find((m) => {
+      // Solo considerar membresías con estado 'active' y que no hayan vencido
+      if (m.status !== 'active') return false;
       const endDate = new Date(m.endDate);
       return endDate >= new Date();
     });
@@ -296,17 +243,136 @@ export default function ClientDetailPage() {
     { id: 'communication', label: 'Comunicación' },
   ];
 
+  // Determinar si tiene deuda crítica (2 o más meses)
+  const hasCriticalDebt = paymentStatus && paymentStatus.monthsOwed >= 2;
+
+  // Función helper para verificar si una membresía está activa y al día
+  const isMembershipActiveAndUpToDate = (membership: Membership): boolean => {
+    // Verificar que el estado sea 'active'
+    if (membership.status !== 'active') return false;
+    
+    const endDate = new Date(membership.endDate);
+    const isActive = endDate >= new Date();
+    if (!isActive) return false;
+    
+    const membershipType = membershipTypes.find(mt => mt.id === membership.membershipTypeId);
+    if (!membershipType) return false;
+    
+    const membershipPayments = clientPayments.filter(
+      p => p.membershipId === membership.id && p.status === 'completed'
+    );
+    const today = new Date();
+    const startDate = new Date(membership.startDate);
+    let expectedMonths = 0;
+    
+    if (endDate >= today) {
+      const diffTime = today.getTime() - startDate.getTime();
+      expectedMonths = Math.ceil(diffTime / (membershipType.durationDays * 24 * 60 * 60 * 1000));
+    } else {
+      const diffTime = endDate.getTime() - startDate.getTime();
+      expectedMonths = Math.ceil(diffTime / (membershipType.durationDays * 24 * 60 * 60 * 1000));
+    }
+    
+    const totalExpected = expectedMonths * membershipType.price;
+    const totalPaid = membershipPayments.reduce((sum, p) => sum + p.amount, 0);
+    const amountOwed = Math.max(0, totalExpected - totalPaid);
+    
+    return amountOwed === 0;
+  };
+
+  // Encontrar membresías que se pueden cancelar
+  // Se puede cancelar si:
+  // - La membresía está activa
+  // - Tiene días restantes Y debe 1 mes o más
+  // NO se puede cancelar si:
+  // - Está activa, tiene días restantes Y está al día (sin deudas)
+  const membershipToCancel = clientMemberships.find(m => {
+    if (m.status !== 'active') return false;
+    
+    const endDate = new Date(m.endDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    endDate.setHours(0, 0, 0, 0);
+    
+    // Si ya venció, se puede cancelar
+    if (endDate < today) return true;
+    
+    // Si tiene días restantes, verificar si tiene deuda
+    if (endDate >= today) {
+      const membershipType = membershipTypes.find(mt => mt.id === m.membershipTypeId);
+      if (!membershipType) return false;
+      
+      // Calcular deuda
+      const membershipPayments = clientPayments.filter(
+        p => p.membershipId === m.id && p.status === 'completed'
+      );
+      
+      const startDate = new Date(m.startDate);
+      startDate.setHours(0, 0, 0, 0);
+      const diffTime = today.getTime() - startDate.getTime();
+      const expectedMonths = Math.ceil(diffTime / (membershipType.durationDays * 24 * 60 * 60 * 1000));
+      
+      const totalExpected = expectedMonths * membershipType.price;
+      const totalPaid = membershipPayments.reduce((sum, p) => sum + p.amount, 0);
+      const amountOwed = Math.max(0, totalExpected - totalPaid);
+      const monthsOwed = membershipType.price > 0 ? Math.ceil(amountOwed / membershipType.price) : 0;
+      
+      // Se puede cancelar si debe 1 mes o más
+      return monthsOwed >= 1;
+    }
+    
+    return false;
+  });
+
+  const handleConfirmCancelMembership = async () => {
+    if (!confirmCancelDialog.membershipId || !client) return;
+    
+    try {
+      await updateMembership(confirmCancelDialog.membershipId, {
+        status: 'expired',
+      }, true); // skipLog = true, registraremos el log manualmente
+      
+      // Registrar log de cancelación
+      const membership = memberships.find(m => m.id === confirmCancelDialog.membershipId);
+      const membershipType = membership ? membershipTypes.find(mt => mt.id === membership.membershipTypeId) : null;
+      
+      await addAuditLog({
+        actionType: 'update',
+        entityType: 'membership',
+        entityId: confirmCancelDialog.membershipId,
+        description: `Membresía cancelada: ${client.name} - ${confirmCancelDialog.membershipName}`,
+        metadata: {
+          clientId: client.id,
+          clientName: client.name,
+          membershipTypeId: membership?.membershipTypeId,
+          membershipTypeName: membershipType?.name || confirmCancelDialog.membershipName,
+          oldStatus: 'active',
+          newStatus: 'expired',
+        },
+      });
+      
+      setConfirmCancelDialog({
+        isOpen: false,
+        membershipId: null,
+        membershipName: '',
+      });
+    } catch (error) {
+      console.error('Error cancelando membresía:', error);
+      alert('Error al cancelar la membresía. Por favor intenta de nuevo.');
+    }
+  };
+
   return (
     <MainLayout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-semibold text-gray-50">{client.name}</h1>
+          <h1 className="text-3xl font-semibold text-gray-900 dark:text-gray-50">{client.name}</h1>
           {client.phone ? (
             <a
               href={`https://wa.me/${client.phone.replace(/\D/g, '')}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 text-gray-400 hover:text-primary-400 transition-colors mt-1 group"
+              className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-primary-500 dark:hover:text-primary-400 transition-colors mt-1 group"
             >
               <Phone className="w-4 h-4" />
               <span>{client.phone}</span>
@@ -315,15 +381,15 @@ export default function ClientDetailPage() {
               </span>
             </a>
           ) : client.email ? (
-            <p className="text-gray-400 mt-1">{client.email}</p>
+            <p className="text-gray-600 dark:text-gray-400 mt-1">{client.email}</p>
           ) : (
-            <p className="text-gray-400 mt-1">Sin contacto</p>
+            <p className="text-gray-600 dark:text-gray-400 mt-1">Sin contacto</p>
           )}
         </div>
 
         {/* Estado de Membresía y Pagos */}
         {paymentStatus && (
-          <Card className="bg-gradient-to-r from-dark-800 to-dark-750 border-dark-700">
+          <Card className="bg-gradient-to-r from-gray-50 via-gray-100/50 to-gray-50 dark:bg-gradient-to-r dark:from-dark-800 dark:to-dark-750 border-gray-200 dark:border-dark-700">
             <div className="flex items-center justify-between">
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-3">
@@ -339,38 +405,65 @@ export default function ClientDetailPage() {
 
                 {paymentStatus.monthsOwed > 0 ? (
                   <div className="flex items-start gap-3">
-                    <AlertCircle className="w-5 h-5 text-warning-400 mt-0.5" />
+                    <AlertCircle className={`w-5 h-5 mt-0.5 ${
+                      hasCriticalDebt ? 'text-danger-400' : 'text-amber-600 dark:text-warning-500'
+                    }`} style={hasCriticalDebt ? { 
+                      filter: 'drop-shadow(0 0 2px rgba(239, 68, 68, 0.4)) drop-shadow(0 0 4px rgba(239, 68, 68, 0.3))'
+                    } : {}} />
                     <div>
-                      <p className="text-warning-400 font-semibold">
+                      <p className={`font-semibold ${
+                        hasCriticalDebt ? 'text-danger-400 text-danger-glow' : 'text-amber-600 dark:text-warning-500'
+                      }`}>
                         Debe {paymentStatus.monthsOwed} {paymentStatus.monthsOwed === 1 ? 'mes' : 'meses'}
+                        {paymentStatus.membershipsWithDebt > 1 && (
+                          <span className="ml-2 text-sm font-normal">
+                            (de {paymentStatus.membershipsWithDebt} {paymentStatus.membershipsWithDebt === 1 ? 'membresía' : 'membresías'})
+                          </span>
+                        )}
                       </p>
-                      <p className="text-2xl font-bold text-warning-400 mt-1">
+                      <p className={`text-2xl font-bold mt-1 ${
+                        hasCriticalDebt ? 'text-danger-400 text-danger-glow' : 'text-amber-600 dark:text-warning-500'
+                      }`}>
                         ${paymentStatus.amountOwed.toLocaleString()}
                       </p>
-                      <p className="text-xs text-dark-400 mt-1">
+                      <p className="text-xs text-gray-600 dark:text-dark-400 mt-1">
                         Actualizado: {format(new Date(), 'dd/MM/yyyy HH:mm')}
                       </p>
                     </div>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="w-5 h-5 text-success-400" />
-                    <p className="text-success-400 font-semibold text-lg">
-                      Pagos al día
-                    </p>
+                  <div className="flex items-start gap-3">
+                    <CheckCircle className="w-5 h-5 mt-0.5 text-success-400" />
+                    <div>
+                      <p className="text-sm text-gray-600 dark:text-dark-400 mb-1">Estado de Pago</p>
+                      <p className="text-lg font-semibold text-success-400">
+                        Al día
+                      </p>
+                      {paymentStatus.advancePaidMonths > 0 && (
+                        <p className="text-sm text-success-400 font-medium mt-2">
+                          {paymentStatus.advancePaidMonths} {paymentStatus.advancePaidMonths === 1 ? 'mes' : 'meses'} pagado{paymentStatus.advancePaidMonths > 1 ? 's' : ''} por adelantado
+                        </p>
+                      )}
+                      <p className="text-xs text-gray-600 dark:text-dark-400 mt-1">
+                        Actualizado: {format(new Date(), 'dd/MM/yyyy HH:mm')}
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>
 
-              <Link href="/payments">
-                <Button
-                  variant={paymentStatus.monthsOwed > 0 ? 'primary' : 'secondary'}
-                  className="px-6"
-                >
-                  <CreditCard className="w-4 h-4 mr-2" />
-                  Cobrar Membresía
-                </Button>
-              </Link>
+              <Button
+                variant={paymentStatus.monthsOwed > 0 ? 'primary' : 'secondary'}
+                className={`px-6 ${
+                  paymentStatus.monthsOwed > 0 
+                    ? '' 
+                    : 'border-success-500/50 hover:bg-success-500/10'
+                }`}
+                onClick={() => setShowPaymentModal(true)}
+              >
+                <CreditCard className="w-4 h-4 mr-2" />
+                Pagar Membresía
+              </Button>
             </div>
           </Card>
         )}
@@ -384,8 +477,8 @@ export default function ClientDetailPage() {
                 onClick={() => setActiveTab(tab.id as any)}
                 className={`py-2.5 px-4 font-medium text-sm rounded-lg transition-all ${
                   activeTab === tab.id
-                    ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30'
-                    : 'text-gray-400 hover:text-gray-300 hover:bg-dark-800/50'
+                    ? 'bg-primary-500/10 dark:bg-primary-500/20 text-primary-700 dark:text-primary-400 border border-primary-500/40 dark:border-primary-500/30 font-semibold'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-800/50'
                 }`}
               >
                 {tab.label}
@@ -407,7 +500,7 @@ export default function ClientDetailPage() {
                       </span>
                     </div>
                     <div>
-                      <h2 className="text-xl font-semibold text-gray-50">{client.name}</h2>
+                      <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-50">{client.name}</h2>
                       <Badge variant={clientStatus.variant}>
                         {clientStatus.label}
                       </Badge>
@@ -423,44 +516,44 @@ export default function ClientDetailPage() {
 
                 <div className="grid grid-cols-2 gap-4 pt-4">
                   <div>
-                    <p className="text-sm text-gray-400">Email</p>
-                    <p className="font-medium text-gray-50">{client.email || '-'}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Email</p>
+                    <p className="font-medium text-gray-900 dark:text-gray-50">{client.email || '-'}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-400">Teléfono</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Teléfono</p>
                     {client.phone ? (
                       <a
                         href={`https://wa.me/${client.phone.replace(/\D/g, '')}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-2 font-medium text-primary-400 hover:text-primary-300 transition-colors"
+                        className="flex items-center gap-2 font-medium text-primary-500 dark:text-primary-400 hover:text-primary-600 dark:hover:text-primary-300 transition-colors"
                       >
                         <Phone className="w-4 h-4" />
                         <span>{client.phone}</span>
                       </a>
                     ) : (
-                      <p className="font-medium text-gray-50">-</p>
+                      <p className="font-medium text-gray-900 dark:text-gray-50">-</p>
                     )}
                   </div>
                   <div>
-                    <p className="text-sm text-gray-400">Cédula / Documento</p>
-                    <p className="font-medium text-gray-50">{client.documentId || '-'}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Cédula / Documento</p>
+                    <p className="font-medium text-gray-900 dark:text-gray-50">{client.documentId || '-'}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-400">Fecha de nacimiento</p>
-                    <p className="font-medium text-gray-50">
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Fecha de nacimiento</p>
+                    <p className="font-medium text-gray-900 dark:text-gray-50">
                       {client.birthDate ? format(new Date(client.birthDate), 'dd/MM/yyyy') : '-'}
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-400">Peso inicial</p>
-                    <p className="font-medium text-gray-50">
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Peso inicial</p>
+                    <p className="font-medium text-gray-900 dark:text-gray-50">
                       {client.initialWeight ? `${client.initialWeight} kg` : '-'}
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-400">Fecha de registro</p>
-                    <p className="font-medium text-gray-50">
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Fecha de registro</p>
+                    <p className="font-medium text-gray-900 dark:text-gray-50">
                       {format(new Date(client.createdAt), 'dd/MM/yyyy')}
                     </p>
                   </div>
@@ -468,105 +561,19 @@ export default function ClientDetailPage() {
               </div>
             </Card>
 
-            {/* Sección de Gráficas */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Gráfica de Pagos Realizados */}
-              <Card>
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-50">Pagos Realizados</h3>
-                  {paymentsChartData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={250}>
-                      <BarChart data={paymentsChartData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                        <XAxis 
-                          dataKey="month" 
-                          stroke="#9CA3AF"
-                          style={{ fontSize: '11px' }}
-                          tick={{ fill: '#9CA3AF' }}
-                          angle={-45}
-                          textAnchor="end"
-                          height={60}
-                        />
-                        <YAxis 
-                          stroke="#9CA3AF"
-                          style={{ fontSize: '11px' }}
-                          tick={{ fill: '#9CA3AF' }}
-                          tickFormatter={(value) => `$${value / 1000}k`}
-                        />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: '#1F2937',
-                            border: '1px solid #374151',
-                            borderRadius: '8px',
-                            color: '#F3F4F6'
-                          }}
-                          labelStyle={{ color: '#9CA3AF' }}
-                          formatter={(value: number) => `$${value.toLocaleString()}`}
-                        />
-                        <Bar dataKey="amount" fill="#EF4444" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="h-64 flex items-center justify-center">
-                      <p className="text-gray-400 text-sm">No hay datos de pagos</p>
-                    </div>
-                  )}
-                </div>
-              </Card>
-
-              {/* Gráfica de Asistencia */}
-              <Card>
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-50">Asistencia</h3>
-                  {attendanceChartData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={250}>
-                      <BarChart data={attendanceChartData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                        <XAxis 
-                          dataKey="month" 
-                          stroke="#9CA3AF"
-                          style={{ fontSize: '11px' }}
-                          tick={{ fill: '#9CA3AF' }}
-                          angle={-45}
-                          textAnchor="end"
-                          height={60}
-                        />
-                        <YAxis 
-                          stroke="#9CA3AF"
-                          style={{ fontSize: '11px' }}
-                          tick={{ fill: '#9CA3AF' }}
-                        />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: '#1F2937',
-                            border: '1px solid #374151',
-                            borderRadius: '8px',
-                            color: '#F3F4F6'
-                          }}
-                          labelStyle={{ color: '#9CA3AF' }}
-                        />
-                        <Legend />
-                        <Bar dataKey="present" stackId="a" fill="#10B981" name="Presente" radius={[0, 0, 0, 0]} />
-                        <Bar dataKey="absent" stackId="a" fill="#EF4444" name="Ausente" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="h-64 flex items-center justify-center">
-                      <p className="text-gray-400 text-sm">No hay datos de asistencia</p>
-                    </div>
-                  )}
-                </div>
-              </Card>
-            </div>
           </>
         )}
 
         {activeTab === 'memberships' && (
           <Card>
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold text-gray-50">Membresías</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-50">Membresías</h2>
               {client.status !== 'inactive' && client.status !== 'suspended' && (
-                <Button variant="primary" onClick={() => setShowMembershipModal(true)}>
+                <Button 
+                  variant="secondary" 
+                  onClick={() => setShowMembershipModal(true)}
+                  className="bg-transparent border-2 border-danger-500 text-danger-500 hover:bg-danger-500/10 dark:bg-transparent dark:border-danger-500 dark:text-danger-500 dark:hover:bg-danger-500/10"
+                >
                   <Plus className="w-4 h-4 mr-2" />
                   Asignar Membresía
                 </Button>
@@ -574,7 +581,7 @@ export default function ClientDetailPage() {
             </div>
             <div className="space-y-3">
               {clientMemberships.length === 0 ? (
-                <p className="text-gray-400 text-center py-8">
+                <p className="text-gray-600 dark:text-gray-400 text-center py-8">
                   No hay membresías asignadas
                 </p>
               ) : (
@@ -584,24 +591,61 @@ export default function ClientDetailPage() {
                   
                   // Si el cliente está inactivo, todas las membresías se consideran vencidas
                   const clientIsInactive = client.status === 'inactive' || client.status === 'suspended';
-                  const isActive = !clientIsInactive && endDate >= new Date();
+                  // Una membresía está activa solo si: el cliente está activo, la fecha no ha vencido Y el estado es 'active'
+                  const isActive = !clientIsInactive && endDate >= new Date() && membership.status === 'active';
                   const daysLeft = Math.ceil((endDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
                   const isUrgent = !clientIsInactive && isActive && daysLeft <= 7 && daysLeft >= 0;
-                  const isExpired = clientIsInactive || daysLeft < 0;
+                  const isExpired = clientIsInactive || daysLeft < 0 || membership.status === 'expired';
+                  const isCanceled = membership.status === 'expired';
                   
-                  const handleRenew = () => {
-                    if (!type) return;
+                  const handleCancelMembership = (membershipId: string, membershipName: string) => {
+                    setConfirmCancelDialog({
+                      isOpen: true,
+                      membershipId,
+                      membershipName,
+                    });
+                  };
+
+                  const handleRenew = async () => {
+                    if (!type || !client) return;
+                    
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
                     const newStartDate = new Date();
+                    newStartDate.setHours(0, 0, 0, 0);
                     const newEndDate = new Date(newStartDate);
                     newEndDate.setDate(newEndDate.getDate() + type.durationDays);
                     
-                    addMembership({
-                      clientId: client.id,
-                      membershipTypeId: membership.membershipTypeId,
+                    // Verificar si la membresía ya venció
+                    const endDate = new Date(membership.endDate);
+                    endDate.setHours(0, 0, 0, 0);
+                    const isExpired = endDate < today;
+                    
+                    // Actualizar la membresía existente en lugar de crear una nueva
+                    await updateMembership(membership.id, {
                       startDate: newStartDate,
                       endDate: newEndDate,
                       status: 'active',
                     });
+                    
+                    // Si la membresía estaba vencida, crear automáticamente un pago pendiente por el mes anterior
+                    if (isExpired) {
+                      // Calcular el mes anterior que quedó pendiente
+                      const previousMonth = new Date(today);
+                      previousMonth.setMonth(previousMonth.getMonth() - 1);
+                      const paymentMonth = format(previousMonth, 'yyyy-MM');
+                      
+                      await addPayment({
+                        clientId: client.id,
+                        membershipId: membership.id,
+                        amount: type.price,
+                        method: 'cash', // Por defecto, se puede cambiar después
+                        paymentDate: today,
+                        status: 'pending', // Pendiente de pago
+                        paymentMonth: paymentMonth,
+                        notes: 'Pago pendiente del mes anterior (renovación automática)',
+                      });
+                    }
                   };
 
                   // Servicios incluidos
@@ -640,31 +684,47 @@ export default function ClientDetailPage() {
                   const amountOwedForThis = Math.max(0, totalExpectedForThis - totalPaidForThis);
                   const monthsOwedForThis = type ? Math.ceil(amountOwedForThis / type.price) : 0;
                   
+                  // Calcular meses pagados por adelantado para esta membresía específica
+                  const currentMonth = format(today, 'yyyy-MM');
+                  const advancePaymentsForThis = membershipPaymentsForThis.filter(
+                    p => p.paymentMonth && p.paymentMonth > currentMonth
+                  );
+                  // Sumar el monto total de pagos adelantados y dividir por el precio mensual
+                  const advanceAmountForThis = advancePaymentsForThis.reduce((sum, p) => sum + p.amount, 0);
+                  const advanceMonthsForThis = type && type.price > 0 
+                    ? Math.floor(advanceAmountForThis / type.price)
+                    : 0;
+                  
                   return (
                     <div
                       key={membership.id}
                       className={`p-5 rounded-lg border ${
-                        isActive ? 'bg-dark-800 border-dark-600' : 'bg-dark-800/30 border-dark-700/30'
+                        isActive ? 'bg-white dark:bg-dark-800 border-gray-200 dark:border-dark-600' : 'bg-gray-50 dark:bg-dark-800/30 border-gray-200 dark:border-dark-700/30'
                       }`}
                     >
                       <div className="flex justify-between items-start mb-4">
                         <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <h3 className="text-lg font-semibold text-gray-50">{type?.name || 'Membresía'}</h3>
-                            <Badge variant={clientIsInactive ? 'warning' : (isActive ? 'success' : 'danger')}>
-                              {clientIsInactive ? 'Vencida' : (isActive ? 'Activa' : 'Vencida')}
+                          <div className="flex items-center gap-3 mb-2 flex-wrap">
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-50">{type?.name || 'Membresía'}</h3>
+                            <Badge variant={clientIsInactive ? 'warning' : (isCanceled ? 'warning' : (isActive ? 'success' : 'danger'))}>
+                              {clientIsInactive ? 'Vencida' : (isCanceled ? 'Cancelada' : (isActive ? 'Activa' : 'Vencida'))}
                             </Badge>
+                            {advanceMonthsForThis > 0 && (
+                              <Badge variant="success" className="bg-success-500/20 text-success-400 border border-success-500/50">
+                                {advanceMonthsForThis} {advanceMonthsForThis === 1 ? 'mes' : 'meses'} pagado{advanceMonthsForThis > 1 ? 's' : ''} por adelantado
+                              </Badge>
+                            )}
                           </div>
-                          <p className="text-sm text-gray-400 mb-2">
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
                             {format(new Date(membership.startDate), 'dd/MM/yyyy')} - {format(endDate, 'dd/MM/yyyy')}
                           </p>
                           {type && (
-                            <div className="flex items-center gap-3 mb-2">
-                              <span className="text-sm font-semibold text-primary-400">
+                            <div className="flex items-center gap-3 mb-2 flex-wrap">
+                              <span className="text-sm font-semibold text-primary-500 dark:text-primary-400">
                                 ${type.price.toLocaleString()}/mes
                               </span>
                               {monthsOwedForThis > 0 && (
-                                <span className="text-sm font-bold text-warning-400">
+                                <span className="text-sm font-bold text-amber-600 dark:text-warning-500">
                                   • Debe {monthsOwedForThis} {monthsOwedForThis === 1 ? 'mes' : 'meses'}: ${amountOwedForThis.toLocaleString()}
                                 </span>
                               )}
@@ -678,7 +738,7 @@ export default function ClientDetailPage() {
                           )}
                           {/* Días restantes */}
                           {clientIsInactive ? (
-                            <p className="text-xs text-gray-500">
+                            <p className="text-xs text-gray-500 dark:text-gray-500">
                               Membresía vencida (cliente inactivo)
                             </p>
                           ) : isExpired ? (
@@ -687,7 +747,7 @@ export default function ClientDetailPage() {
                             </p>
                           ) : isActive ? (
                             <p className={`text-xs ${
-                              isUrgent ? 'text-warning-400' : 'text-gray-400'
+                              isUrgent ? 'text-amber-600 dark:text-warning-500' : 'text-gray-600 dark:text-gray-400'
                             }`}>
                               {daysLeft === 0 
                                 ? 'Vence hoy'
@@ -700,8 +760,8 @@ export default function ClientDetailPage() {
 
                       {/* Servicios incluidos */}
                       {type && type.includes && (
-                        <div className="pt-4 border-t border-dark-700/30">
-                          <h4 className="text-sm font-semibold text-gray-300 mb-3">Servicios incluidos</h4>
+                        <div className="pt-4 border-t border-gray-200 dark:border-dark-700/30">
+                          <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Servicios incluidos</h4>
                           <div className="grid grid-cols-2 gap-2">
                             {Object.entries(type.includes).map(([key, value]) => {
                               // Saltar customServices y valores numéricos
@@ -714,16 +774,16 @@ export default function ClientDetailPage() {
                               }
                               
                               return (
-                                <div key={key} className="flex items-center gap-2 text-sm text-gray-300">
+                                <div key={key} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                                   <Check className="w-4 h-4 text-success-400 flex-shrink-0" />
-                                  <span>{serviceLabels[key] || key}</span>
+                                  <span className="font-medium">{serviceLabels[key] || key}</span>
                                   {key === 'groupClasses' && type.includes.groupClassesCount && type.includes.groupClassesCount > 0 && (
-                                    <span className="text-xs text-gray-500">
+                                    <span className="text-xs text-gray-600 dark:text-gray-500">
                                       ({type.includes.groupClassesCount}/mes)
                                     </span>
                                   )}
                                   {key === 'personalTrainer' && type.includes.personalTrainerSessions && type.includes.personalTrainerSessions > 0 && (
-                                    <span className="text-xs text-gray-500">
+                                    <span className="text-xs text-gray-600 dark:text-gray-500">
                                       ({type.includes.personalTrainerSessions} sesiones)
                                     </span>
                                   )}
@@ -738,9 +798,9 @@ export default function ClientDetailPage() {
                                   const customService = gymCustomServices.find(s => s.id === serviceId);
                                   if (!customService) return null;
                                   return (
-                                    <div key={serviceId} className="flex items-center gap-2 text-sm text-gray-300">
+                                    <div key={serviceId} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                                       <Check className="w-4 h-4 text-success-400 flex-shrink-0" />
-                                      <span>{customService.name}</span>
+                                      <span className="font-medium">{customService.name}</span>
                                     </div>
                                   );
                                 })}
@@ -754,13 +814,63 @@ export default function ClientDetailPage() {
                         <div className="pt-4 mt-4 border-t border-dark-700/30">
                           <Button
                             variant="success"
-                            className="w-full"
+                            size="sm"
+                            className="w-auto"
                             onClick={handleRenew}
                           >
                             Renovar Membresía
                           </Button>
                         </div>
                       )}
+
+                      {/* Botón para cancelar membresía - dentro de cada card */}
+                      {!clientIsInactive && membership.status === 'active' && (() => {
+                        // Verificar si se puede cancelar esta membresía específica
+                        const endDateCheck = new Date(membership.endDate);
+                        const todayCheck = new Date();
+                        todayCheck.setHours(0, 0, 0, 0);
+                        endDateCheck.setHours(0, 0, 0, 0);
+                        
+                        // Si ya venció, se puede cancelar
+                        if (endDateCheck < todayCheck) {
+                          return (
+                            <div className="pt-4 mt-4 border-t border-gray-200 dark:border-dark-700/30">
+                              <Button
+                                variant="danger"
+                                size="sm"
+                                className="w-auto"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleCancelMembership(membership.id, type?.name || 'Membresía');
+                                }}
+                              >
+                                Cancelar
+                              </Button>
+                            </div>
+                          );
+                        }
+                        
+                        // Si tiene días restantes, verificar si debe 1 mes o más
+                        if (endDateCheck >= todayCheck && monthsOwedForThis >= 1) {
+                          return (
+                            <div className="pt-4 mt-4 border-t border-gray-200 dark:border-dark-700/30">
+                              <Button
+                                variant="danger"
+                                size="sm"
+                                className="w-auto"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleCancelMembership(membership.id, type?.name || 'Membresía');
+                                }}
+                              >
+                                Cancelar
+                              </Button>
+                            </div>
+                          );
+                        }
+                        
+                        return null;
+                      })()}
                     </div>
                   );
                 })
@@ -772,11 +882,11 @@ export default function ClientDetailPage() {
         {activeTab === 'payments' && (
           <Card>
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold text-gray-50">Pagos</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-50">Pagos</h2>
             </div>
             <div className="space-y-3">
               {clientPayments.length === 0 ? (
-                <p className="text-gray-400 text-center py-8">No hay pagos registrados</p>
+                <p className="text-gray-600 dark:text-gray-400 text-center py-8">No hay pagos registrados</p>
               ) : (
                 clientPayments.map((payment) => {
                   const membership = payment.membershipId 
@@ -825,15 +935,15 @@ export default function ClientDetailPage() {
                   };
 
                   return (
-                    <div key={payment.id} className="p-4 bg-dark-800/30 rounded-lg border border-dark-700/30">
+                    <div key={payment.id} className="p-4 bg-white dark:bg-dark-800/30 rounded-lg border border-gray-200 dark:border-dark-700/30">
                       <div className="flex justify-between items-start mb-3">
                         <div>
-                          <p className="font-semibold text-gray-50 text-lg">${payment.amount.toLocaleString()}</p>
-                          <p className="text-sm text-gray-400 mt-1">
+                          <p className="font-semibold text-gray-900 dark:text-gray-50 text-lg">${payment.amount.toLocaleString()}</p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                             {format(new Date(payment.paymentDate), 'dd/MM/yyyy')} • {payment.method === 'cash' ? 'Efectivo' : payment.method === 'transfer' ? 'Transferencia' : payment.method}
                           </p>
                           {membershipType && (
-                            <p className="text-xs text-gray-500 mt-1">
+                            <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
                               {membershipType.name}
                             </p>
                           )}
@@ -843,7 +953,7 @@ export default function ClientDetailPage() {
                         </Badge>
                       </div>
                       {payment.status === 'completed' && (
-                        <div className="flex gap-2 pt-3 border-t border-dark-700/30">
+                        <div className="flex gap-2 pt-3 border-t border-gray-200 dark:border-dark-700/30">
                           <Button
                             variant="secondary"
                             className="flex-1"
@@ -874,17 +984,17 @@ export default function ClientDetailPage() {
 
         {activeTab === 'classes' && (
           <Card>
-            <h2 className="text-lg font-semibold text-gray-50 mb-4">Clases Asignadas</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-50 mb-4">Clases Asignadas</h2>
             {clientEnrollments.length === 0 ? (
-              <p className="text-gray-400 text-center py-8">No está inscrito en ninguna clase</p>
+              <p className="text-gray-600 dark:text-gray-400 text-center py-8">No está inscrito en ninguna clase</p>
             ) : (
               <div className="space-y-2">
                 {clientEnrollments.map((enrollment) => {
                   const classItem = classes.find((c) => c.id === enrollment.classId);
                   return classItem ? (
-                    <div key={enrollment.id} className="p-3 bg-dark-800/30 rounded-lg border border-dark-700/30">
-                      <p className="font-semibold text-gray-50">{classItem.name}</p>
-                      <p className="text-sm text-gray-400 mt-1">
+                    <div key={enrollment.id} className="p-4 bg-white dark:bg-dark-800/30 rounded-lg border border-gray-200 dark:border-dark-700/30">
+                      <p className="font-semibold text-gray-900 dark:text-gray-50">{classItem.name}</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                         {classItem.startTime} - {classItem.duration} min
                       </p>
                     </div>
@@ -898,7 +1008,7 @@ export default function ClientDetailPage() {
         {activeTab === 'medical' && (
           <Card>
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold text-gray-50">Historial Clínico</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-50">Historial Clínico</h2>
               <Button variant="primary" onClick={() => setShowMedicalModal(true)}>
                 <Plus className="w-4 h-4 mr-2" />
                 Agregar Registro
@@ -906,7 +1016,7 @@ export default function ClientDetailPage() {
             </div>
             <div className="space-y-2">
               {clientMedicalRecords.length === 0 ? (
-                <p className="text-gray-400 text-center py-8">No hay registros clínicos</p>
+                <p className="text-gray-600 dark:text-gray-400 text-center py-8">No hay registros clínicos</p>
               ) : (
                 clientMedicalRecords.map((record) => {
                   const medicalTypeNames: Record<string, string> = {
@@ -918,16 +1028,16 @@ export default function ClientDetailPage() {
                   };
                   
                   return (
-                    <div key={record.id} className="p-4 bg-dark-800/30 rounded-lg border border-dark-700/30">
+                    <div key={record.id} className="p-4 bg-white dark:bg-dark-800/30 rounded-lg border border-gray-200 dark:border-dark-700/30">
                       <div className="flex justify-between items-start mb-2">
-                        <p className="font-semibold text-gray-50">{medicalTypeNames[record.type] || record.type}</p>
-                        <p className="text-sm text-gray-400">
+                        <p className="font-semibold text-gray-900 dark:text-gray-50">{medicalTypeNames[record.type] || record.type}</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
                           {format(new Date(record.date), 'dd/MM/yyyy')}
                         </p>
                       </div>
-                      <p className="text-sm text-gray-200">{record.description}</p>
+                      <p className="text-sm text-gray-700 dark:text-gray-200">{record.description}</p>
                       {record.notes && (
-                        <p className="text-sm text-gray-400 mt-2">{record.notes}</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">{record.notes}</p>
                       )}
                     </div>
                   );
@@ -942,7 +1052,7 @@ export default function ClientDetailPage() {
             {/* Registro de Peso */}
             <Card>
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-semibold text-gray-50">Registro de Peso</h2>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-50">Registro de Peso</h2>
                 <Button variant="primary" onClick={() => setShowWeightModal(true)}>
                   <Plus className="w-4 h-4 mr-2" />
                   Registrar Peso
@@ -960,15 +1070,15 @@ export default function ClientDetailPage() {
                 
                 // Si no hay registros pero hay peso inicial, mostrarlo
                 if (allWeights.length === 0) {
-                  return <p className="text-gray-400 text-center py-8">No hay registros de peso</p>;
+                  return <p className="text-gray-600 dark:text-gray-400 text-center py-8">No hay registros de peso</p>;
                 }
                 
                 return (
                   <div className="space-y-6">
                     {/* Gráfica de evolución */}
                     {allWeights.length > 0 && (
-                      <div className="bg-dark-800/30 rounded-lg p-4 border border-dark-700/30">
-                        <h3 className="text-sm font-semibold text-gray-300 mb-4">Evolución del Peso</h3>
+                      <div className="bg-white dark:bg-dark-800/30 rounded-lg p-4 border border-gray-200 dark:border-dark-700/30">
+                        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Evolución del Peso</h3>
                         <WeightChart data={allWeights.map((w: any) => ({
                           date: format(new Date(w.date), 'dd/MM/yyyy'),
                           weight: w.weight,
@@ -979,7 +1089,7 @@ export default function ClientDetailPage() {
                     
                     {/* Historial completo */}
                     <div>
-                      <h3 className="text-sm font-semibold text-gray-300 mb-3">Historial de Registros</h3>
+                      <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Historial de Registros</h3>
                       <div className="space-y-3 max-h-96 overflow-y-auto">
                         {allWeights
                           .slice()
@@ -994,11 +1104,11 @@ export default function ClientDetailPage() {
                             const isIncrease = difference && parseFloat(difference) > 0;
                             
                             return (
-                              <div key={record.id || 'initial'} className="p-4 bg-dark-800/30 rounded-lg border border-dark-700/30">
+                              <div key={record.id || 'initial'} className="p-4 bg-white dark:bg-dark-800/30 rounded-lg border border-gray-200 dark:border-dark-700/30">
                                 <div className="flex justify-between items-start mb-2">
                                   <div>
-                                    <p className="text-2xl font-bold text-gray-50">{record.weight} kg</p>
-                                    <p className="text-sm text-gray-400 mt-1">
+                                    <p className="text-2xl font-bold text-gray-900 dark:text-gray-50">{record.weight} kg</p>
+                                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                                       {format(new Date(record.date), 'dd/MM/yyyy')}
                                       {record.isInitial && <span className="ml-2 text-xs">(Peso inicial)</span>}
                                     </p>
@@ -1010,7 +1120,7 @@ export default function ClientDetailPage() {
                                   )}
                                 </div>
                                 {record.notes && (
-                                  <p className="text-sm text-gray-300 mt-2">{record.notes}</p>
+                                  <p className="text-sm text-gray-700 dark:text-gray-300 mt-2">{record.notes}</p>
                                 )}
                               </div>
                             );
@@ -1025,7 +1135,7 @@ export default function ClientDetailPage() {
             {/* Metas */}
             <Card>
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-semibold text-gray-50">Metas</h2>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-50">Metas</h2>
                 <Button variant="primary" onClick={() => setShowGoalModal(true)}>
                   <Plus className="w-4 h-4 mr-2" />
                   Nueva Meta
@@ -1036,7 +1146,7 @@ export default function ClientDetailPage() {
                   const clientGoals = goals.filter((g) => g.clientId === client.id);
                   
                   if (clientGoals.length === 0) {
-                    return <p className="text-gray-400 text-center py-8">No hay metas registradas</p>;
+                    return <p className="text-gray-600 dark:text-gray-400 text-center py-8">No hay metas registradas</p>;
                   }
                   
                   return clientGoals.map((goal) => {
@@ -1050,18 +1160,18 @@ export default function ClientDetailPage() {
                     };
                     
                     return (
-                      <div key={goal.id} className="p-4 bg-dark-800/30 rounded-lg border border-dark-700/30">
+                      <div key={goal.id} className="p-4 bg-white dark:bg-dark-800/30 rounded-lg border border-gray-200 dark:border-dark-700/30">
                         <div className="flex justify-between items-start mb-2">
                           <div>
-                            <p className="font-semibold text-gray-50">{goalTypeNames[goal.type] || goal.type}</p>
-                            <p className="text-sm text-gray-300 mt-1">{goal.description}</p>
+                            <p className="font-semibold text-gray-900 dark:text-gray-50">{goalTypeNames[goal.type] || goal.type}</p>
+                            <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">{goal.description}</p>
                             {goal.targetValue && (
-                              <p className="text-sm text-gray-400 mt-1">
+                              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                                 Objetivo: {goal.targetValue} {goal.type.includes('weight') ? 'kg' : ''}
                               </p>
                             )}
                             {goal.targetDate && (
-                              <p className="text-sm text-gray-400 mt-1">
+                              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                                 Fecha objetivo: {format(new Date(goal.targetDate), 'dd/MM/yyyy')}
                               </p>
                             )}
@@ -1108,7 +1218,7 @@ export default function ClientDetailPage() {
         {activeTab === 'communication' && (
           <Card>
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold text-gray-50">Comunicación</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-50">Comunicación</h2>
               <Button variant="primary" onClick={() => setShowCommunicationModal(true)}>
                 <Plus className="w-4 h-4 mr-2" />
                 Enviar Mensaje
@@ -1116,18 +1226,18 @@ export default function ClientDetailPage() {
             </div>
             <div className="space-y-2">
               {clientCommunications.length === 0 ? (
-                <p className="text-gray-400 text-center py-8">No hay comunicaciones registradas</p>
+                <p className="text-gray-600 dark:text-gray-400 text-center py-8">No hay comunicaciones registradas</p>
               ) : (
                 clientCommunications.map((comm) => (
-                  <div key={comm.id} className="p-3 bg-dark-800/30 rounded-lg border border-dark-700/30">
-                    <div className="flex justify-between items-start mb-1">
+                  <div key={comm.id} className="p-4 bg-white dark:bg-dark-800/30 rounded-lg border border-gray-200 dark:border-dark-700/30">
+                    <div className="flex justify-between items-start mb-2">
                       <Badge variant="info">{comm.type === 'whatsapp' ? 'WhatsApp' : 'Email'}</Badge>
-                      <p className="text-sm text-gray-400">
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
                         {format(new Date(comm.sentAt), 'dd/MM/yyyy HH:mm')}
                       </p>
                     </div>
-                    {comm.subject && <p className="font-semibold text-gray-50 mt-2">{comm.subject}</p>}
-                    <p className="text-sm text-gray-200 mt-1">{comm.message}</p>
+                    {comm.subject && <p className="font-semibold text-gray-900 dark:text-gray-50 mt-2">{comm.subject}</p>}
+                    <p className="text-sm text-gray-700 dark:text-gray-200 mt-1 whitespace-pre-wrap">{comm.message}</p>
                   </div>
                 ))
               )}
@@ -1172,6 +1282,7 @@ export default function ClientDetailPage() {
         isOpen={showWeightModal}
         onClose={() => setShowWeightModal(false)}
         clientId={client.id}
+        client={client}
         onSuccess={() => {
           setShowWeightModal(false);
           setActiveTab('weight');
@@ -1199,9 +1310,31 @@ export default function ClientDetailPage() {
           }}
         />
       )}
-    </MainLayout>
-  );
-}
+
+      {/* Modal de Cobro */}
+      {client && showPaymentModal && (
+        <PaymentModal
+          isOpen={showPaymentModal}
+          onClose={() => setShowPaymentModal(false)}
+          client={client}
+        />
+        )}
+
+        <ConfirmDialog
+          isOpen={confirmCancelDialog.isOpen}
+          onClose={() => setConfirmCancelDialog({
+            isOpen: false,
+            membershipId: null,
+            membershipName: '',
+          })}
+          onConfirm={handleConfirmCancelMembership}
+          title="Cancelar Membresía"
+          message={`¿Estás seguro de cancelar la membresía "${confirmCancelDialog.membershipName}" de ${client?.name}? Esta acción cambiará el estado de la membresía a vencida.`}
+          variant="danger"
+        />
+      </MainLayout>
+    );
+  }
 
 // Modal de Editar Miembro
 function EditMemberModal({ 
@@ -1215,7 +1348,7 @@ function EditMemberModal({
   onClose: () => void; 
   onSuccess: () => void;
 }) {
-  const { updateClient, updateMembership, gym, membershipTypes, memberships } = useApp();
+  const { updateClient, updateMembership, addAuditLog, gym, membershipTypes, memberships } = useApp();
   const clientMembership = memberships.find(m => m.clientId === client.id);
 
   const [formData, setFormData] = useState({
@@ -1253,8 +1386,8 @@ function EditMemberModal({
 
     setIsLoading(true);
     try {
-      // Actualizar datos del cliente
-      await updateClient(client.id, {
+      // Actualizar datos del cliente (omitir log automático)
+      const clientUpdateResult = await updateClient(client.id, {
         name: formData.name,
         email: formData.email || undefined,
         phone: formData.phone || undefined,
@@ -1263,7 +1396,9 @@ function EditMemberModal({
         initialWeight: formData.initialWeight ? parseFloat(formData.initialWeight) : undefined,
         notes: formData.notes || undefined,
         status: formData.status as 'active' | 'inactive' | 'suspended',
-      });
+      }, true); // skipLog = true
+
+      let membershipUpdateResult = null;
 
       // Si se inactiva el cliente, cancelar automáticamente su membresía activa
       if (formData.status === 'inactive' || formData.status === 'suspended') {
@@ -1276,9 +1411,9 @@ function EditMemberModal({
         
         // Cancelar todas las membresías activas
         for (const membership of activeMemberships) {
-          await updateMembership(membership.id, {
+          membershipUpdateResult = await updateMembership(membership.id, {
             status: 'expired' as 'active' | 'expired' | 'upcoming_expiry',
-          });
+          }, true); // skipLog = true
         }
       } else {
         // Si el cliente está activo, actualizar membresía normalmente
@@ -1297,13 +1432,74 @@ function EditMemberModal({
             calculatedStatus = daysUntilExpiry <= 7 ? 'upcoming_expiry' : 'active';
           }
           
-          await updateMembership(clientMembership.id, {
+          membershipUpdateResult = await updateMembership(clientMembership.id, {
             membershipTypeId: formData.membershipTypeId,
             startDate: new Date(formData.membershipStartDate),
             endDate: new Date(formData.membershipEndDate),
             status: calculatedStatus,
+          }, true); // skipLog = true
+        }
+      }
+
+      // Crear un log combinado con todos los cambios
+      if (clientUpdateResult) {
+        const allChanges: string[] = [];
+        
+        // Agregar cambios del cliente
+        if (clientUpdateResult.changes && clientUpdateResult.changes.length > 0) {
+          allChanges.push(...clientUpdateResult.changes);
+        }
+        
+        // Agregar cambios de la membresía
+        if (membershipUpdateResult && membershipUpdateResult.changes && membershipUpdateResult.changes.length > 0) {
+          allChanges.push(...membershipUpdateResult.changes);
+        }
+        
+        // Solo registrar log si hay cambios
+        if (allChanges.length > 0) {
+          const updatedClient = clientUpdateResult.updatedClient;
+          const membershipType = membershipUpdateResult?.newMembershipType || membershipTypes.find(mt => mt.id === clientMembership?.membershipTypeId);
+          
+          await addAuditLog({
+            actionType: 'update',
+            entityType: 'client',
+            entityId: client.id,
+            description: `Miembro actualizado: ${updatedClient.name} - Cambios: ${allChanges.join(', ')}`,
+            metadata: {
+              clientChanges: clientUpdateResult.changes,
+              membershipChanges: membershipUpdateResult?.changes || [],
+              oldClientValues: clientUpdateResult.oldClient,
+              newClientValues: updatedClient,
+              oldMembershipValues: membershipUpdateResult?.oldMembership,
+              newMembershipValues: membershipUpdateResult?.updatedMembership,
+            },
           });
         }
+      } else if (membershipUpdateResult && membershipUpdateResult.changes && membershipUpdateResult.changes.length > 0) {
+        // Si solo se actualizó la membresía (sin cambios en el cliente), registrar log de membresía
+        const client = membershipUpdateResult.client;
+        const membershipType = membershipUpdateResult.newMembershipType;
+        
+        await addAuditLog({
+          actionType: 'update',
+          entityType: 'membership',
+          entityId: clientMembership?.id || '',
+          description: `Membresía actualizada: ${client?.name || 'Cliente'} - ${membershipType?.name || 'Plan'} - Cambios: ${membershipUpdateResult.changes.join(', ')}`,
+          metadata: {
+            clientId: membershipUpdateResult.updatedMembership.clientId,
+            clientName: client?.name,
+            oldMembershipTypeId: membershipUpdateResult.oldMembership.membershipTypeId,
+            oldMembershipTypeName: membershipUpdateResult.oldMembershipType?.name,
+            newMembershipTypeId: membershipUpdateResult.updatedMembership.membershipTypeId,
+            newMembershipTypeName: membershipType?.name,
+            oldStartDate: membershipUpdateResult.oldMembership.startDate,
+            oldEndDate: membershipUpdateResult.oldMembership.endDate,
+            newStartDate: membershipUpdateResult.updatedMembership.startDate,
+            newEndDate: membershipUpdateResult.updatedMembership.endDate,
+            oldStatus: membershipUpdateResult.oldMembership.status,
+            newStatus: membershipUpdateResult.updatedMembership.status,
+          },
+        });
       }
 
       onSuccess();
@@ -1560,6 +1756,18 @@ function EditMemberModal({
 
 // Componente de gráfica de peso
 function WeightChart({ data }: { data: Array<{ date: string; weight: number; isInitial?: boolean }> }) {
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  useEffect(() => {
+    const checkDarkMode = () => {
+      setIsDarkMode(window.matchMedia('(prefers-color-scheme: dark)').matches);
+    };
+    checkDarkMode();
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    mediaQuery.addEventListener('change', checkDarkMode);
+    return () => mediaQuery.removeEventListener('change', checkDarkMode);
+  }, []);
+
   // Ordenar datos por fecha para asegurar orden cronológico
   const sortedData = [...data].sort((a, b) => {
     const dateA = new Date(a.date.split('/').reverse().join('-'));
@@ -1578,34 +1786,44 @@ function WeightChart({ data }: { data: Array<{ date: string; weight: number; isI
   const yMin = Math.max(0, minWeight - padding);
   const yMax = maxWeight + padding;
 
+  const chartColors = {
+    grid: isDarkMode ? '#374151' : '#E5E7EB',
+    axis: isDarkMode ? '#9CA3AF' : '#6B7280',
+    text: isDarkMode ? '#9CA3AF' : '#6B7280',
+    tooltipBg: isDarkMode ? '#1F2937' : '#FFFFFF',
+    tooltipBorder: isDarkMode ? '#374151' : '#E5E7EB',
+    tooltipText: isDarkMode ? '#F3F4F6' : '#111827',
+    tooltipLabel: isDarkMode ? '#9CA3AF' : '#6B7280',
+  };
+
   return (
     <ResponsiveContainer width="100%" height={200}>
       <LineChart data={sortedData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+        <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
         <XAxis 
           dataKey="date" 
-          stroke="#9CA3AF"
+          stroke={chartColors.axis}
           style={{ fontSize: '12px' }}
-          tick={{ fill: '#9CA3AF' }}
+          tick={{ fill: chartColors.text }}
           angle={-45}
           textAnchor="end"
           height={60}
         />
         <YAxis 
-          stroke="#9CA3AF"
+          stroke={chartColors.axis}
           style={{ fontSize: '12px' }}
-          tick={{ fill: '#9CA3AF' }}
-          label={{ value: 'kg', angle: -90, position: 'insideLeft', fill: '#9CA3AF' }}
+          tick={{ fill: chartColors.text }}
+          label={{ value: 'kg', angle: -90, position: 'insideLeft', fill: chartColors.text }}
           domain={[yMin, yMax]}
         />
         <Tooltip
           contentStyle={{
-            backgroundColor: '#1F2937',
-            border: '1px solid #374151',
+            backgroundColor: chartColors.tooltipBg,
+            border: `1px solid ${chartColors.tooltipBorder}`,
             borderRadius: '8px',
-            color: '#F3F4F6'
+            color: chartColors.tooltipText
           }}
-          labelStyle={{ color: '#9CA3AF' }}
+          labelStyle={{ color: chartColors.tooltipLabel }}
         />
         <Line 
           type="monotone" 
@@ -1622,7 +1840,7 @@ function WeightChart({ data }: { data: Array<{ date: string; weight: number; isI
 
 // Modal components
 function MembershipModal({ isOpen, onClose, clientId, onSuccess }: any) {
-  const { membershipTypes, addMembership } = useApp();
+  const { membershipTypes, addMembership, memberships } = useApp();
   const [formData, setFormData] = useState({
     membershipTypeId: '',
     startDate: new Date().toISOString().split('T')[0],
@@ -1630,50 +1848,144 @@ function MembershipModal({ isOpen, onClose, clientId, onSuccess }: any) {
     amount: 0,
     notes: '',
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Verificar si el cliente ya tiene una membresía activa del tipo seleccionado
+  const existingMembership = formData.membershipTypeId 
+    ? memberships.find(
+        m => m.clientId === clientId &&
+             m.membershipTypeId === formData.membershipTypeId &&
+             m.status === 'active'
+      )
+    : null;
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+    setIsSubmitting(true);
+
     const type = membershipTypes.find((t) => t.id === formData.membershipTypeId);
-    if (!type) return;
+    if (!type) {
+      setError('Por favor selecciona un tipo de membresía');
+      setIsSubmitting(false);
+      return;
+    }
 
-    const startDate = new Date(formData.startDate);
-    const endDate = new Date(startDate);
-    endDate.setDate(endDate.getDate() + type.durationDays);
+    if (!formData.startDate) {
+      setError('Por favor selecciona una fecha de inicio');
+      setIsSubmitting(false);
+      return;
+    }
 
-    addMembership({
-      clientId,
-      membershipTypeId: formData.membershipTypeId,
-      startDate,
-      endDate,
-      status: 'active',
-    });
+    // Validar que no tenga ya una membresía activa del mismo tipo
+    if (existingMembership) {
+      setError(`Este cliente ya tiene una membresía activa de tipo "${type.name}". No se pueden tener múltiples membresías del mismo tipo. Por favor, actualiza o cancela la membresía existente.`);
+      setIsSubmitting(false);
+      return;
+    }
 
-    onSuccess();
+    try {
+      const startDate = new Date(formData.startDate);
+      const endDate = new Date(startDate);
+      endDate.setDate(endDate.getDate() + type.durationDays);
+
+      await addMembership({
+        clientId,
+        membershipTypeId: formData.membershipTypeId,
+        startDate,
+        endDate,
+        status: 'active',
+      });
+
+      // Reset form
+      setFormData({
+        membershipTypeId: '',
+        startDate: new Date().toISOString().split('T')[0],
+        method: 'cash',
+        amount: 0,
+        notes: '',
+      });
+      
+      onSuccess();
+    } catch (err: any) {
+      console.error('Error adding membership:', err);
+      setError(err?.message || 'Error al asignar la membresía. Por favor, intenta nuevamente.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Asignar Membresía">
       <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Advertencia si ya tiene membresía del mismo tipo */}
+        {existingMembership && (
+          <div className="bg-warning-500/20 border border-warning-500/50 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-warning-400 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-warning-400 mb-1">
+                  Membresía duplicada detectada
+                </p>
+                <p className="text-xs text-gray-300">
+                  Este cliente ya tiene una membresía activa de tipo "{membershipTypes.find(t => t.id === formData.membershipTypeId)?.name}". 
+                  No se pueden tener múltiples membresías del mismo tipo. 
+                  Por favor, actualiza o cancela la membresía existente antes de crear una nueva.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+        {error && (
+          <div className="p-3 bg-danger-500/20 border border-danger-500/50 rounded-lg">
+            <p className="text-sm text-danger-400">{error}</p>
+          </div>
+        )}
+        
         <Select
-          label="Tipo de membresía"
-          options={membershipTypes.map((t) => ({ value: t.id, label: `${t.name} - $${t.price}` }))}
+          label="Tipo de membresía *"
+          options={[
+            { value: '', label: 'Seleccionar tipo de membresía' },
+            ...membershipTypes.filter(t => t.isActive).map((t) => ({ 
+              value: t.id, 
+              label: `${t.name} - $${t.price.toLocaleString()}` 
+            }))
+          ]}
           value={formData.membershipTypeId}
-          onChange={(e) => setFormData({ ...formData, membershipTypeId: e.target.value })}
+          onChange={(e) => {
+            setFormData({ ...formData, membershipTypeId: e.target.value });
+            if (error) setError(null);
+          }}
           required
+          disabled={isSubmitting}
         />
         <Input
-          label="Fecha de inicio"
+          label="Fecha de inicio *"
           type="date"
           value={formData.startDate}
-          onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+          onChange={(e) => {
+            setFormData({ ...formData, startDate: e.target.value });
+            if (error) setError(null);
+          }}
           required
+          disabled={isSubmitting}
         />
         <div className="flex justify-end gap-3 pt-4">
-          <Button type="button" variant="secondary" onClick={onClose}>
+          <Button 
+            type="button" 
+            variant="secondary" 
+            onClick={onClose}
+            disabled={isSubmitting}
+          >
             Cancelar
           </Button>
-          <Button type="submit" variant="primary">
-            Confirmar
+          <Button 
+            type="submit" 
+            variant="primary"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? 'Asignando...' : 'Confirmar'}
           </Button>
         </div>
       </form>
@@ -1681,84 +1993,709 @@ function MembershipModal({ isOpen, onClose, clientId, onSuccess }: any) {
   );
 }
 
-function PaymentModal({ isOpen, onClose, clientId, onSuccess }: any) {
-  const { memberships, membershipTypes, addPayment } = useApp();
-  const [formData, setFormData] = useState({
-    membershipId: '',
-    amount: 0,
-    method: 'cash' as 'cash' | 'transfer',
-    paymentDate: new Date().toISOString().split('T')[0],
-    notes: '',
-  });
+// Modal de Cobro desde la página de detalle
+function PaymentModal({
+  isOpen,
+  onClose,
+  client,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  client: Client;
+}) {
+  const { memberships, membershipTypes, payments, addPayment } = useApp();
+  const [selectedMembershipId, setSelectedMembershipId] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'single' | 'mixed'>('single');
+  const [singleMethod, setSingleMethod] = useState<'cash' | 'transfer' | 'card'>('cash');
+  const [singleAmount, setSingleAmount] = useState('');
+  const [cashAmount, setCashAmount] = useState('');
+  const [transferAmount, setTransferAmount] = useState('');
+  const [notes, setNotes] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [monthsToPay, setMonthsToPay] = useState<number | ''>('');
+  
 
-  const clientMemberships = memberships.filter((m) => m.clientId === clientId);
+  // Obtener membresías activas del cliente (con deuda O al día para pagos adelantados)
+  const activeMemberships = memberships
+    .filter(m => m.clientId === client.id && m.status === 'active')
+    .map(m => {
+      const type = membershipTypes.find(mt => mt.id === m.membershipTypeId);
+      if (!type) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    addPayment({
-      clientId,
-      membershipId: formData.membershipId || undefined,
-      amount: formData.amount,
-      method: formData.method,
-      paymentDate: new Date(formData.paymentDate),
-      status: 'completed',
-      notes: formData.notes || undefined,
+      // Usar calculatePaymentStatus para obtener el estado de pago
+      const paymentStatus = calculatePaymentStatus(
+        client,
+        m,
+        type,
+        payments
+      );
+
+      return {
+        membership: m,
+        type,
+        amountOwed: paymentStatus.totalOwed,
+        monthsOwed: paymentStatus.monthsOwed,
+        isUpToDate: paymentStatus.isUpToDate,
+        nextPaymentMonth: paymentStatus.nextPaymentMonth,
+      };
+    })
+    .filter(item => item !== null) as Array<{
+      membership: Membership;
+      type: import('@/types').MembershipType;
+      amountOwed: number;
+      monthsOwed: number;
+      isUpToDate: boolean;
+      nextPaymentMonth: string | null;
+    }>;
+
+  // Calcular deuda total consolidada de TODAS las membresías activas
+  const totalDebt = useMemo(() => {
+    let totalAmountOwed = 0;
+    let totalMonthsOwed = 0;
+    let allUpToDate = true;
+
+    activeMemberships.forEach(item => {
+      totalAmountOwed += item.amountOwed;
+      totalMonthsOwed += item.monthsOwed;
+      if (item.amountOwed > 0) {
+        allUpToDate = false;
+      }
     });
-    onSuccess();
+
+    return {
+      totalAmountOwed,
+      totalMonthsOwed,
+      allUpToDate,
+    };
+  }, [activeMemberships]);
+
+  // Calcular selectedMembership basado en selectedMembershipId
+  const selectedMembership = useMemo(() => {
+    return activeMemberships.find(
+      item => item.membership.id === selectedMembershipId
+    ) || (activeMemberships.length > 0 ? activeMemberships[0] : null);
+  }, [activeMemberships, selectedMembershipId]);
+
+  // Calcular monto máximo permitido: siempre el precio mensual de la membresía seleccionada
+  const maxAllowedAmount = useMemo(() => {
+    if (!selectedMembership) return 0;
+    // El máximo siempre es el precio mensual de la membresía
+    return selectedMembership.type.price;
+  }, [selectedMembership]);
+
+  // Seleccionar automáticamente la primera membresía si solo hay una
+  useEffect(() => {
+    if (activeMemberships.length === 1 && !selectedMembershipId) {
+      setSelectedMembershipId(activeMemberships[0].membership.id);
+      const firstMembership = activeMemberships[0];
+      // Si tiene deuda, establecer el monto de la deuda; si está al día, establecer el precio mensual y 1 mes
+      if (firstMembership.amountOwed > 0) {
+        setSingleAmount(firstMembership.amountOwed.toString());
+        setMonthsToPay('');
+      } else {
+        setSingleAmount(firstMembership.type.price.toString());
+        setMonthsToPay(1); // Por defecto 1 mes cuando está al día
+      }
+    }
+  }, [activeMemberships, selectedMembershipId]);
+
+  // Inicializar valores de pago mixto cuando cambia la membresía o el método de pago
+  useEffect(() => {
+    if (selectedMembershipId && paymentMethod === 'mixed') {
+      const selected = activeMemberships.find(item => item.membership.id === selectedMembershipId);
+      if (selected) {
+        let expectedTotal = 0;
+        if (selected.amountOwed > 0) {
+          expectedTotal = selected.amountOwed;
+        } else if (selected.isUpToDate && monthsToPay && typeof monthsToPay === 'number') {
+          expectedTotal = selected.type.price * monthsToPay;
+        } else if (selected.isUpToDate) {
+          expectedTotal = selected.type.price;
+        }
+        
+        // Si hay un total esperado y los valores no están inicializados, inicializar
+        if (expectedTotal > 0) {
+          const cash = parseInt(cashAmount.replace(/\D/g, '') || '0') || 0;
+          const transfer = parseInt(transferAmount.replace(/\D/g, '') || '0') || 0;
+          if (cash === 0 && transfer === 0) {
+            // Inicializar con todo en efectivo
+            setCashAmount(expectedTotal.toString());
+            setTransferAmount('0');
+          } else {
+            // Ajustar para que la suma sea exacta
+            const total = cash + transfer;
+            if (total !== expectedTotal) {
+              const ratio = expectedTotal / (total || 1);
+              const newCash = Math.floor(cash * ratio);
+              const newTransfer = expectedTotal - newCash;
+              setCashAmount(newCash.toString());
+              setTransferAmount(newTransfer.toString());
+            }
+          }
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMembershipId, paymentMethod, monthsToPay]);
+
+  // Calcular monto automáticamente cuando se selecciona cantidad de meses (solo si está al día)
+  useEffect(() => {
+    if (monthsToPay && typeof monthsToPay === 'number' && monthsToPay > 0 && selectedMembership && selectedMembership.isUpToDate) {
+      const calculatedAmount = selectedMembership.type.price * monthsToPay;
+      setSingleAmount(calculatedAmount.toString());
+      // También actualizar pago mixto si está activo
+      if (paymentMethod === 'mixed') {
+        setCashAmount(calculatedAmount.toString());
+        setTransferAmount('0');
+      }
+    }
+  }, [monthsToPay, selectedMembership, paymentMethod]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!selectedMembershipId) {
+      alert('Por favor selecciona una membresía');
+      return;
+    }
+
+    // Calcular monto del pago
+    let paymentAmount = 0;
+    let splitPayment: { cash: number; transfer: number } | undefined;
+
+    if (paymentMethod === 'single') {
+      paymentAmount = parseInt(singleAmount.replace(/\D/g, '')) || 0;
+    } else if (paymentMethod === 'mixed') {
+      const cash = parseInt(cashAmount.replace(/\D/g, '')) || 0;
+      const transfer = parseInt(transferAmount.replace(/\D/g, '')) || 0;
+      paymentAmount = cash + transfer;
+      splitPayment = { cash, transfer };
+    }
+
+    const selectedMembership = activeMemberships.find(
+      item => item.membership.id === selectedMembershipId
+    );
+
+    if (!selectedMembership) {
+      alert('No se encontró la membresía seleccionada');
+      return;
+    }
+
+    // Validar según el estado de la membresía
+    if (selectedMembership.amountOwed > 0) {
+      // Si tiene deuda: el monto debe ser exactamente la deuda
+      if (paymentAmount !== selectedMembership.amountOwed) {
+        alert(`El monto debe ser exactamente $${selectedMembership.amountOwed.toLocaleString()}, que es la deuda pendiente de esta membresía.`);
+        if (paymentMethod === 'single') {
+          setSingleAmount(selectedMembership.amountOwed.toString());
+        } else {
+          setCashAmount(selectedMembership.amountOwed.toString());
+          setTransferAmount('0');
+        }
+        return;
+      }
+    } else if (selectedMembership.isUpToDate) {
+      // Si está al día: validar según meses seleccionados
+      if (monthsToPay && typeof monthsToPay === 'number' && monthsToPay > 0) {
+        const expectedAmount = selectedMembership.type.price * monthsToPay;
+        if (paymentAmount !== expectedAmount) {
+          alert(`El monto debe ser exactamente $${expectedAmount.toLocaleString()}, que corresponde a ${monthsToPay} ${monthsToPay === 1 ? 'mes' : 'meses'}.`);
+          if (paymentMethod === 'single') {
+            setSingleAmount(expectedAmount.toString());
+          } else {
+            setCashAmount(expectedAmount.toString());
+            setTransferAmount('0');
+          }
+          return;
+        }
+      } else {
+        // Si no se seleccionaron meses, validar que sea al menos un mes
+        if (paymentAmount < selectedMembership.type.price) {
+          alert(`El monto debe ser al menos $${selectedMembership.type.price.toLocaleString()}, que es el precio mensual de esta membresía.`);
+          if (paymentMethod === 'single') {
+            setSingleAmount(selectedMembership.type.price.toString());
+          } else {
+            setCashAmount(selectedMembership.type.price.toString());
+            setTransferAmount('0');
+          }
+          return;
+        }
+      }
+    }
+
+    if (paymentAmount <= 0) {
+      alert('El monto del pago debe ser mayor a 0');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      // Lógica simple: el pago va a esta membresía
+      // Si tiene deuda: primero cubre la deuda, el resto es abono
+      // Si está al día: todo es abono
+        
+        const hasDebt = selectedMembership.amountOwed > 0;
+        const debtAmount = selectedMembership.amountOwed;
+        const advanceAmount = hasDebt ? Math.max(0, paymentAmount - debtAmount) : paymentAmount;
+        
+        // Si tiene deuda, primero pagar la deuda
+        if (hasDebt) {
+          const debtPaymentAmount = Math.min(paymentAmount, debtAmount);
+          const isPartialDebt = debtPaymentAmount < debtAmount;
+          
+          const debtPaymentData: Omit<Payment, 'id' | 'createdAt' | 'updatedAt'> = {
+            clientId: client.id,
+            membershipId: selectedMembershipId,
+            amount: debtPaymentAmount,
+            method: paymentMethod === 'single' ? singleMethod : 'transfer',
+            paymentDate: new Date(),
+            status: 'completed',
+            notes: notes || (advanceAmount > 0 ? `Pago de deuda (resto: abono)` : undefined),
+            isPartial: isPartialDebt,
+            splitPayment: splitPayment,
+            paymentMonth: format(new Date(), 'yyyy-MM'),
+          };
+
+          await addPayment(debtPaymentData);
+        }
+        
+        // Si hay excedente después de cubrir la deuda, o si está al día, crear abono(s)
+        if (advanceAmount > 0) {
+          const monthlyPrice = selectedMembership.type.price;
+          // Si se seleccionaron meses explícitamente, usar esos; si no, calcular desde el monto
+          let advanceMonths = 0;
+          let startMonth = selectedMembership.nextPaymentMonth;
+          
+          if (monthsToPay && typeof monthsToPay === 'number' && monthsToPay > 0 && !hasDebt) {
+            // Si se seleccionaron meses y no hay deuda, usar esos meses
+            advanceMonths = monthsToPay;
+            // Si no hay nextPaymentMonth, calcular desde el mes actual + 1
+            if (!startMonth) {
+              startMonth = format(addMonths(new Date(), 1), 'yyyy-MM');
+            }
+          } else {
+            // Calcular meses desde el monto
+            advanceMonths = Math.floor(advanceAmount / monthlyPrice);
+            if (!startMonth) {
+              startMonth = format(addMonths(new Date(), 1), 'yyyy-MM');
+            }
+          }
+          
+          if (advanceMonths > 0 && startMonth) {
+            // Crear un pago por cada mes adelantado
+            let currentMonth = parseISO(`${startMonth}-01`);
+            
+            for (let i = 0; i < advanceMonths; i++) {
+              const monthToPay = format(currentMonth, 'yyyy-MM');
+              const monthAmount = i === advanceMonths - 1 
+                ? advanceAmount - (monthlyPrice * (advanceMonths - 1)) // El último mes puede tener el resto
+                : monthlyPrice;
+              
+              const advancePaymentData: Omit<Payment, 'id' | 'createdAt' | 'updatedAt'> = {
+                clientId: client.id,
+                membershipId: selectedMembershipId,
+                amount: monthAmount,
+                method: paymentMethod === 'single' ? singleMethod : 'transfer',
+                paymentDate: new Date(),
+                status: 'completed',
+                notes: notes || (advanceMonths > 1 
+                  ? `Pago adelantado - Mes ${i + 1} de ${advanceMonths}${hasDebt ? ' (después de cubrir deuda)' : ''}`
+                  : `Pago adelantado${hasDebt ? ' (después de cubrir deuda)' : ''}`),
+                isPartial: false,
+                splitPayment: i === 0 ? splitPayment : undefined, // Solo el primer pago tiene split si es mixto
+                paymentMonth: monthToPay,
+              };
+
+              await addPayment(advancePaymentData);
+              currentMonth = addMonths(currentMonth, 1);
+            }
+          } else if (advanceAmount > 0 && startMonth) {
+            // Si el excedente es menor a un mes, crear un pago parcial adelantado
+            const advancePaymentData: Omit<Payment, 'id' | 'createdAt' | 'updatedAt'> = {
+              clientId: client.id,
+              membershipId: selectedMembershipId,
+              amount: advanceAmount,
+              method: paymentMethod === 'single' ? singleMethod : 'transfer',
+              paymentDate: new Date(),
+              status: 'completed',
+              notes: notes || `Pago adelantado parcial${hasDebt ? ' (después de cubrir deuda)' : ''}`,
+              isPartial: true,
+              splitPayment: splitPayment,
+              paymentMonth: startMonth,
+            };
+
+            await addPayment(advancePaymentData);
+          }
+        }
+      
+      // Limpiar formulario
+      setSingleAmount('');
+      setCashAmount('');
+      setTransferAmount('');
+      setNotes('');
+      setSelectedMembershipId('');
+      setMonthsToPay('');
+      
+      onClose();
+    } catch (error) {
+      console.error('Error creating payment:', error);
+      alert('Error al registrar el pago. Por favor intenta de nuevo.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
+  if (activeMemberships.length === 0) {
+    return (
+      <Modal isOpen={isOpen} onClose={onClose} title="Pagar Membresía" maxWidth="2xl">
+        <div className="text-center py-8">
+          <p className="text-gray-400">Este cliente no tiene membresías activas.</p>
+        </div>
+      </Modal>
+    );
+  }
+
+  // selectedMembership ya está calculado arriba
+  if (!selectedMembership) {
+    return (
+      <Modal isOpen={isOpen} onClose={onClose} title="Pagar Membresía" maxWidth="2xl">
+        <div className="text-center py-8">
+          <p className="text-gray-400">No se encontró la membresía seleccionada.</p>
+        </div>
+      </Modal>
+    );
+  }
+
+  // Título del modal: "Pago Adelantado" si está al día, "Pagar Deuda" si tiene deuda
+  const isUpToDate = selectedMembership?.isUpToDate || false;
+  const modalTitle = isUpToDate ? "Pago Adelantado" : "Pagar Deuda";
+
+  const amountOwed = selectedMembership.amountOwed;
+  const monthsOwed = selectedMembership.monthsOwed;
+  const suggestedAmount = selectedMembership.type.price;
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Registrar Pago">
+    <Modal isOpen={isOpen} onClose={onClose} title={modalTitle} maxWidth="4xl">
       <form onSubmit={handleSubmit} className="space-y-4">
-        <Select
-          label="Membresía asociada"
-          options={[
-            { value: '', label: 'Ninguna' },
-            ...clientMemberships.map((m) => {
-              const type = membershipTypes.find((t) => t.id === m.membershipTypeId);
-              return { value: m.id, label: type?.name || 'Membresía' };
-            }),
-          ]}
-          value={formData.membershipId}
-          onChange={(e) => setFormData({ ...formData, membershipId: e.target.value })}
-        />
-        <Input
-          label="Monto"
-          type="number"
-          step="0.01"
-          value={formData.amount}
-          onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })}
-          required
-        />
-        <Select
-          label="Método de pago"
-          options={[
-            { value: 'cash', label: 'Efectivo' },
-            { value: 'transfer', label: 'Transferencia bancaria' },
-          ]}
-          value={formData.method}
-          onChange={(e) => setFormData({ ...formData, method: e.target.value as any })}
-          required
-        />
-        <Input
-          label="Fecha de pago"
-          type="date"
-          value={formData.paymentDate}
-          onChange={(e) => setFormData({ ...formData, paymentDate: e.target.value })}
-          required
-        />
-        <Textarea
-          label="Notas"
-          value={formData.notes}
-          onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-        />
-        <div className="flex justify-end gap-3 pt-4">
-          <Button type="button" variant="secondary" onClick={onClose}>
-            Cancelar
-          </Button>
-          <Button type="submit" variant="primary">
-            Registrar Pago
-          </Button>
+        {/* Layout horizontal: 2 columnas */}
+        <div className="grid grid-cols-2 gap-4">
+          {/* Columna izquierda: Selección */}
+          <div className="space-y-4">
+            {/* Info del cliente - Compacta */}
+            <div className="bg-gray-50 dark:bg-dark-750 p-3 rounded-lg">
+              <p className="text-xs text-gray-600 dark:text-dark-400 mb-1">Cliente</p>
+              <p className="text-lg font-bold text-gray-900 dark:text-gray-100">{client.name}</p>
+              <div className="mt-1.5 flex items-center gap-2">
+                {activeMemberships.length > 1 && (
+                  <Badge variant="info" className="text-xs">
+                    {activeMemberships.length} Membresías
+                  </Badge>
+                )}
+                {selectedMembership && selectedMembership.amountOwed > 0 ? (
+                  <Badge variant="warning" className="text-xs">
+                    Deuda: ${selectedMembership.amountOwed.toLocaleString()}
+                  </Badge>
+                ) : (
+                  <Badge variant="success" className="text-xs">Al día</Badge>
+                )}
+              </div>
+            </div>
+
+            {/* Selector de membresía si hay múltiples */}
+            {activeMemberships.length > 1 && (
+              <div>
+                <label className="block text-xs text-gray-700 dark:text-dark-400 mb-1.5">Membresía</label>
+                <select
+                  value={selectedMembershipId}
+                  onChange={(e) => {
+                    setSelectedMembershipId(e.target.value);
+                    const selected = activeMemberships.find(item => item.membership.id === e.target.value);
+                    if (selected) {
+                      if (selected.amountOwed > 0) {
+                        setSingleAmount(selected.amountOwed.toString());
+                        setMonthsToPay('');
+                        if (paymentMethod === 'mixed') {
+                          setCashAmount(selected.amountOwed.toString());
+                          setTransferAmount('0');
+                        }
+                      } else {
+                        setSingleAmount(selected.type.price.toString());
+                        setMonthsToPay(1);
+                        if (paymentMethod === 'mixed') {
+                          setCashAmount(selected.type.price.toString());
+                          setTransferAmount('0');
+                        }
+                      }
+                    }
+                  }}
+                  className="w-full px-3 py-2 bg-gray-100 dark:bg-dark-800/50 border border-gray-300 dark:border-dark-700/50 text-gray-900 dark:text-gray-100 rounded-lg text-sm focus:border-primary-500 focus:outline-none"
+                  required
+                >
+                  <option value="">Selecciona una membresía</option>
+                  {activeMemberships.map((item) => (
+                    <option key={item.membership.id} value={item.membership.id} className="bg-white dark:bg-dark-800">
+                      {item.type.name} - ${item.type.price.toLocaleString()}/mes {item.amountOwed > 0 && `(Debe $${item.amountOwed.toLocaleString()})`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Selector de meses si está al día */}
+            {selectedMembership && selectedMembership.isUpToDate && (
+              <div>
+                <label className="block text-xs text-gray-700 dark:text-dark-400 mb-1.5">¿Cuántos meses?</label>
+                <select
+                  value={monthsToPay}
+                  onChange={(e) => {
+                    const value = e.target.value === '' ? '' : parseInt(e.target.value);
+                    setMonthsToPay(value);
+                    if (value && typeof value === 'number') {
+                      const calculatedAmount = selectedMembership.type.price * value;
+                      setSingleAmount(calculatedAmount.toString());
+                      if (paymentMethod === 'mixed') {
+                        setCashAmount(calculatedAmount.toString());
+                        setTransferAmount('0');
+                      }
+                    }
+                  }}
+                  className="w-full px-3 py-2 bg-gray-100 dark:bg-dark-800/50 border border-gray-300 dark:border-dark-700/50 text-gray-900 dark:text-gray-100 rounded-lg text-sm focus:border-primary-500 focus:outline-none"
+                >
+                  <option value="">Seleccionar meses...</option>
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(num => (
+                    <option key={num} value={num} className="bg-white dark:bg-dark-800">
+                      {num} {num === 1 ? 'mes' : 'meses'} - ${(selectedMembership.type.price * num).toLocaleString()}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Método de pago */}
+            <div>
+              <label className="block text-xs text-gray-700 dark:text-dark-400 mb-1.5">¿Cómo pagas?</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPaymentMethod('single');
+                    setSingleMethod('cash');
+                  }}
+                  className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                    paymentMethod === 'single' && singleMethod === 'cash'
+                      ? (selectedMembership && selectedMembership.isUpToDate 
+                          ? 'bg-success-500 text-white border-2 border-success-400' 
+                          : 'bg-primary-500 text-white border-2 border-primary-400')
+                      : 'bg-gray-200 dark:bg-dark-700 text-gray-700 dark:text-dark-300 hover:bg-gray-300 dark:hover:bg-dark-600 border-2 border-transparent'
+                  }`}
+                >
+                  Efectivo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPaymentMethod('single');
+                    setSingleMethod('transfer');
+                  }}
+                  className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                    paymentMethod === 'single' && singleMethod === 'transfer'
+                      ? (selectedMembership && selectedMembership.isUpToDate 
+                          ? 'bg-success-500 text-white border-2 border-success-400' 
+                          : 'bg-primary-500 text-white border-2 border-primary-400')
+                      : 'bg-gray-200 dark:bg-dark-700 text-gray-700 dark:text-dark-300 hover:bg-gray-300 dark:hover:bg-dark-600 border-2 border-transparent'
+                  }`}
+                >
+                  Transferencia
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPaymentMethod('single');
+                    setSingleMethod('card');
+                  }}
+                  className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                    paymentMethod === 'single' && singleMethod === 'card'
+                      ? (selectedMembership && selectedMembership.isUpToDate 
+                          ? 'bg-success-500 text-white border-2 border-success-400' 
+                          : 'bg-primary-500 text-white border-2 border-primary-400')
+                      : 'bg-gray-200 dark:bg-dark-700 text-gray-700 dark:text-dark-300 hover:bg-gray-300 dark:hover:bg-dark-600 border-2 border-transparent'
+                  }`}
+                >
+                  Tarjeta
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('mixed')}
+                  className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                    paymentMethod === 'mixed'
+                      ? (selectedMembership && selectedMembership.isUpToDate 
+                          ? 'bg-success-500 text-white border-2 border-success-400' 
+                          : 'bg-primary-500 text-white border-2 border-primary-400')
+                      : 'bg-gray-200 dark:bg-dark-700 text-gray-700 dark:text-dark-300 hover:bg-gray-300 dark:hover:bg-dark-600 border-2 border-transparent'
+                  }`}
+                >
+                  Mixto
+                </button>
+              </div>
+            </div>
+
+            {/* Campos de pago mixto - Compactos */}
+            {paymentMethod === 'mixed' && (
+              <div className="space-y-2">
+                <div>
+                  <label className="block text-xs text-gray-700 dark:text-dark-400 mb-1">Efectivo</label>
+                  <input
+                    type="text"
+                    placeholder="0"
+                    value={cashAmount ? parseInt(cashAmount.replace(/\D/g, '') || '0').toLocaleString('es-CO') : ''}
+                    onChange={(e) => {
+                      let value = e.target.value.replace(/\D/g, '');
+                      const cashValue = parseInt(value) || 0;
+                      
+                      let expectedTotal = 0;
+                      if (selectedMembership && selectedMembership.amountOwed > 0) {
+                        expectedTotal = selectedMembership.amountOwed;
+                      } else if (selectedMembership && selectedMembership.isUpToDate && monthsToPay && typeof monthsToPay === 'number') {
+                        expectedTotal = selectedMembership.type.price * monthsToPay;
+                      } else if (selectedMembership && selectedMembership.isUpToDate) {
+                        expectedTotal = selectedMembership.type.price;
+                      }
+                      
+                      if (expectedTotal > 0 && cashValue > expectedTotal) {
+                        value = expectedTotal.toString();
+                      }
+                      
+                      setCashAmount(value);
+                      const finalCash = parseInt(value) || 0;
+                      const finalTransfer = Math.max(0, expectedTotal - finalCash);
+                      setTransferAmount(finalTransfer.toString());
+                    }}
+                    className="w-full px-3 py-2 bg-gray-100 dark:bg-dark-800/50 border border-gray-300 dark:border-dark-700/50 text-gray-900 dark:text-gray-100 rounded-lg text-base font-semibold focus:border-primary-500 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-700 dark:text-dark-400 mb-1">Transferencia</label>
+                  <input
+                    type="text"
+                    placeholder="0"
+                    value={transferAmount ? parseInt(transferAmount.replace(/\D/g, '') || '0').toLocaleString('es-CO') : ''}
+                    onChange={(e) => {
+                      let value = e.target.value.replace(/\D/g, '');
+                      const transferValue = parseInt(value) || 0;
+                      
+                      let expectedTotal = 0;
+                      if (selectedMembership && selectedMembership.amountOwed > 0) {
+                        expectedTotal = selectedMembership.amountOwed;
+                      } else if (selectedMembership && selectedMembership.isUpToDate && monthsToPay && typeof monthsToPay === 'number') {
+                        expectedTotal = selectedMembership.type.price * monthsToPay;
+                      } else if (selectedMembership && selectedMembership.isUpToDate) {
+                        expectedTotal = selectedMembership.type.price;
+                      }
+                      
+                      if (expectedTotal > 0 && transferValue > expectedTotal) {
+                        value = expectedTotal.toString();
+                      }
+                      
+                      setTransferAmount(value);
+                      const finalTransfer = parseInt(value) || 0;
+                      const finalCash = Math.max(0, expectedTotal - finalTransfer);
+                      setCashAmount(finalCash.toString());
+                    }}
+                    className="w-full px-3 py-2 bg-gray-100 dark:bg-dark-800/50 border border-gray-300 dark:border-dark-700/50 text-gray-900 dark:text-gray-100 rounded-lg text-base font-semibold focus:border-primary-500 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Columna derecha: Resumen del pago - Prominente */}
+          <div className={`p-5 rounded-lg border-2 ${
+            selectedMembership && selectedMembership.isUpToDate 
+              ? 'bg-success-500/10 border-success-500/30' 
+              : 'bg-warning-500/10 border-warning-500/30'
+          }`}>
+            <p className="text-xs text-gray-600 dark:text-dark-400 mb-3 text-center uppercase tracking-wide">
+              {selectedMembership && selectedMembership.isUpToDate ? 'Resumen del pago adelantado' : 'Resumen del pago'}
+            </p>
+            <div className="text-center space-y-3">
+              <div>
+                <p className="text-xs text-gray-600 dark:text-dark-400 mb-1">Membresía</p>
+                <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                  {selectedMembership.type.name}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-600 dark:text-dark-400 mb-1">
+                  {selectedMembership.amountOwed > 0 
+                    ? 'Deuda pendiente' 
+                    : selectedMembership.isUpToDate && monthsToPay && typeof monthsToPay === 'number'
+                    ? 'Meses adelantados'
+                    : 'Mes adelantado'}
+                </p>
+                <p className="text-base font-semibold text-gray-700 dark:text-gray-200">
+                  {selectedMembership.amountOwed > 0 
+                    ? `${selectedMembership.monthsOwed} ${selectedMembership.monthsOwed === 1 ? 'mes' : 'meses'}`
+                    : selectedMembership.isUpToDate && monthsToPay && typeof monthsToPay === 'number'
+                    ? `${monthsToPay} ${monthsToPay === 1 ? 'mes' : 'meses'}`
+                    : '1 mes'}
+                </p>
+              </div>
+              <div className={`pt-3 border-t ${
+                selectedMembership && selectedMembership.isUpToDate 
+                  ? 'border-success-500/20' 
+                  : 'border-warning-500/20'
+              }`}>
+                <p className="text-xs text-gray-600 dark:text-dark-400 mb-1">Total</p>
+                <p className={`text-4xl font-bold ${
+                  selectedMembership && selectedMembership.isUpToDate 
+                    ? 'text-success-400' 
+                    : 'text-warning-400'
+                }`}>
+                  ${(() => {
+                    if (selectedMembership.amountOwed > 0) return selectedMembership.amountOwed.toLocaleString();
+                    if (selectedMembership.isUpToDate && monthsToPay && typeof monthsToPay === 'number') {
+                      return (selectedMembership.type.price * monthsToPay).toLocaleString();
+                    }
+                    return selectedMembership.type.price.toLocaleString();
+                  })()}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Notas y botones en una fila */}
+        <div className="grid grid-cols-3 gap-4 items-end">
+          <div className="col-span-2">
+            <label className="block text-xs text-gray-700 dark:text-dark-400 mb-1.5">Notas (opcional)</label>
+            <Textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Información adicional..."
+              rows={2}
+              className="text-sm"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={onClose}
+              className="flex-1 py-2.5 text-sm"
+              disabled={isLoading}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              variant={selectedMembership && selectedMembership.isUpToDate ? "success" : "primary"}
+              className="flex-1 py-2.5 text-sm"
+              disabled={isLoading}
+            >
+              <CreditCard className="w-3.5 h-3.5 mr-1.5" />
+              {isLoading ? '...' : 'Confirmar'}
+            </Button>
+          </div>
         </div>
       </form>
     </Modal>
@@ -1983,12 +2920,69 @@ function CommunicationModal({ isOpen, onClose, clientId, onSuccess }: any) {
   );
 }
 
-function WeightModal({ isOpen, onClose, clientId, onSuccess }: any) {
+function WeightModal({ isOpen, onClose, clientId, client, onSuccess }: any) {
   const { addWeightRecord } = useApp();
   const [formData, setFormData] = useState({
     weight: '',
+    height: '', // en centímetros
     notes: '',
   });
+
+  // Calcular IMC y clasificación OMS
+  const calculateBMI = (weight: number, heightInCm: number): number | null => {
+    if (!weight || !heightInCm || heightInCm <= 0) return null;
+    
+    // Convertir centímetros a metros
+    const heightInMeters = heightInCm / 100;
+    
+    return weight / (heightInMeters * heightInMeters);
+  };
+
+  const getBMIClassification = (bmi: number): { label: string; color: string; description: string } => {
+    if (bmi < 18.5) {
+      return {
+        label: 'Bajo peso',
+        color: 'text-warning-400',
+        description: 'Tu peso está por debajo del rango normal. Consulta con un profesional de la salud.'
+      };
+    } else if (bmi < 25) {
+      return {
+        label: 'Peso normal',
+        color: 'text-success-400',
+        description: '¡Excelente! Tu peso está en el rango normal según la OMS.'
+      };
+    } else if (bmi < 30) {
+      return {
+        label: 'Sobrepeso',
+        color: 'text-warning-400',
+        description: 'Tienes sobrepeso. Te recomendamos consultar con un profesional de la salud.'
+      };
+    } else if (bmi < 35) {
+      return {
+        label: 'Obesidad grado I',
+        color: 'text-danger-400',
+        description: 'Obesidad moderada. Es importante consultar con un profesional de la salud.'
+      };
+    } else if (bmi < 40) {
+      return {
+        label: 'Obesidad grado II',
+        color: 'text-danger-400',
+        description: 'Obesidad severa. Consulta urgentemente con un profesional de la salud.'
+      };
+    } else {
+      return {
+        label: 'Obesidad grado III',
+        color: 'text-danger-400',
+        description: 'Obesidad mórbida. Consulta urgentemente con un profesional de la salud.'
+      };
+    }
+  };
+
+  const bmi = formData.weight && formData.height 
+    ? calculateBMI(parseFloat(formData.weight), parseFloat(formData.height))
+    : null;
+  
+  const classification = bmi ? getBMIClassification(bmi) : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -2008,15 +3002,47 @@ function WeightModal({ isOpen, onClose, clientId, onSuccess }: any) {
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Registrar Peso">
       <form onSubmit={handleSubmit} className="space-y-4">
-        <Input
-          label="Peso (kg)"
-          type="number"
-          step="0.1"
-          value={formData.weight}
-          onChange={(e) => setFormData({ ...formData, weight: e.target.value })}
-          placeholder="Ej: 75.5"
-          required
-        />
+        <div className="grid grid-cols-2 gap-4">
+          <Input
+            label="Peso (kg) *"
+            type="number"
+            step="0.1"
+            value={formData.weight}
+            onChange={(e) => setFormData({ ...formData, weight: e.target.value })}
+            placeholder="Ej: 75.5"
+            required
+          />
+          <Input
+            label="Altura (cm) *"
+            type="number"
+            step="0.1"
+            value={formData.height}
+            onChange={(e) => setFormData({ ...formData, height: e.target.value })}
+            placeholder="Ej: 175"
+            required
+          />
+        </div>
+        <p className="text-xs text-gray-400 -mt-2">
+          Ingresa la altura en centímetros (ej: 175 para 1.75 m)
+        </p>
+        
+        {/* Mostrar IMC y clasificación */}
+        {bmi && classification && (
+          <div className="bg-dark-700/50 rounded-lg p-4 border border-dark-600">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-gray-400">Índice de Masa Corporal (IMC):</span>
+              <span className="text-2xl font-bold text-gray-50">{bmi.toFixed(1)}</span>
+            </div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-sm text-gray-400">Clasificación OMS:</span>
+              <span className={`font-semibold ${classification.color}`}>
+                {classification.label}
+              </span>
+            </div>
+            <p className="text-xs text-gray-400 mt-2">{classification.description}</p>
+          </div>
+        )}
+
         <Textarea
           label="Notas (opcional)"
           value={formData.notes}

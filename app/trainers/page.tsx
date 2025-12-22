@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Trainer } from '@/types';
 import { 
@@ -29,6 +30,15 @@ export default function TrainersPage() {
     name: '',
     email: '',
     phone: '',
+  });
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    trainer: Trainer | null;
+    message: string;
+  }>({
+    isOpen: false,
+    trainer: null,
+    message: '',
   });
 
   const filteredTrainers = trainers.filter(trainer =>
@@ -92,22 +102,34 @@ export default function TrainersPage() {
     handleCloseModal();
   };
 
-  const handleDelete = async (trainer: Trainer) => {
+  const handleDelete = (trainer: Trainer) => {
     // Verificar si el entrenador tiene clases asignadas
     const trainerClasses = classes.filter(c => c.trainerId === trainer.id);
     
+    let message = '';
     if (trainerClasses.length > 0) {
       const classNames = trainerClasses.map(c => c.name).join(', ');
-      if (!confirm(`Este entrenador tiene ${trainerClasses.length} clase(s) asignada(s): ${classNames}. ¿Estás seguro de que deseas eliminarlo?`)) {
-        return;
-      }
+      message = `Este entrenador tiene ${trainerClasses.length} clase(s) asignada(s): ${classNames}. ¿Estás seguro de que deseas eliminarlo?`;
     } else {
-      if (!confirm(`¿Estás seguro de que deseas eliminar a ${trainer.name}?`)) {
-        return;
-      }
+      message = `¿Estás seguro de que deseas eliminar a ${trainer.name}?`;
     }
+    
+    setConfirmDialog({
+      isOpen: true,
+      trainer,
+      message,
+    });
+  };
 
-    await deleteTrainer(trainer.id);
+  const handleConfirmDelete = async () => {
+    if (confirmDialog.trainer) {
+      await deleteTrainer(confirmDialog.trainer.id);
+      setConfirmDialog({
+        isOpen: false,
+        trainer: null,
+        message: '',
+      });
+    }
   };
 
   const getTrainerClassCount = (trainerId: string) => {
@@ -118,7 +140,7 @@ export default function TrainersPage() {
     return (
       <MainLayout>
         <div className="flex items-center justify-center h-64">
-          <p className="text-gray-400">Cargando entrenadores...</p>
+          <p className="text-gray-600 dark:text-gray-400">Cargando entrenadores...</p>
         </div>
       </MainLayout>
     );
@@ -126,12 +148,12 @@ export default function TrainersPage() {
 
   return (
     <MainLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 min-h-[calc(100vh-200px)] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-50 mb-2">Entrenadores</h1>
-            <p className="text-gray-400">Gestiona los entrenadores de tu gimnasio</p>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-50 mb-2">Entrenadores</h1>
+            <p className="text-gray-600 dark:text-gray-400">Gestiona los entrenadores de tu gimnasio</p>
           </div>
           <Button
             variant="primary"
@@ -145,7 +167,7 @@ export default function TrainersPage() {
 
         {/* Search */}
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500" />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500 dark:text-gray-500" />
           <Input
             type="text"
             placeholder="Buscar entrenadores por nombre, email o teléfono..."
@@ -157,32 +179,53 @@ export default function TrainersPage() {
 
         {/* Trainers List */}
         {filteredTrainers.length === 0 ? (
-          <Card className="p-12 text-center">
-            <Users className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-gray-300 mb-2">
-              {searchTerm ? 'No se encontraron entrenadores' : 'No hay entrenadores'}
-            </h3>
-            <p className="text-gray-500">
-              {searchTerm
-                ? 'Intenta con otro término de búsqueda'
-                : 'Comienza agregando tu primer entrenador'}
-            </p>
-          </Card>
+          trainers.length === 0 ? (
+            <div className="flex-1 flex items-center justify-center py-12">
+              <div className="w-full max-w-xl text-center">
+                <Users className="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 mb-4" />
+                <h2 className="text-xl font-bold text-gray-900 dark:text-gray-50 mb-3">
+                  Agrega tu primer entrenador
+                </h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                  Los entrenadores son las <strong className="text-gray-900 dark:text-gray-50">personas que imparten clases en tu gimnasio</strong>. Asígnales clases y gestiona su información de contacto.
+                </p>
+                <div className="flex justify-center">
+                  <Button
+                    variant="primary"
+                    onClick={() => handleOpenModal()}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Agregar mi primer entrenador
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <Card className="p-12 text-center bg-white dark:bg-dark-800/50 border border-gray-200 dark:border-dark-700/50">
+              <Users className="w-12 h-12 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-50 mb-2">
+                No se encontraron entrenadores
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Intenta con otro término de búsqueda
+              </p>
+            </Card>
+          )
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredTrainers.map((trainer) => {
               const classCount = getTrainerClassCount(trainer.id);
               return (
-                <Card key={trainer.id} className="p-5 hover:border-primary-500/30 transition-colors">
+                <div key={trainer.id} className="bg-white dark:bg-dark-800/50 border border-gray-200 dark:border-dark-700/50 rounded-xl p-5 hover:border-primary-500/30 transition-colors">
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-12 rounded-full bg-primary-500/20 flex items-center justify-center">
-                        <User className="w-6 h-6 text-primary-400" />
+                        <User className="w-6 h-6 text-primary-500 dark:text-primary-400" />
                       </div>
                       <div>
-                        <h3 className="font-semibold text-gray-50 text-lg">{trainer.name}</h3>
+                        <h3 className="font-semibold text-gray-900 dark:text-gray-50 text-lg">{trainer.name}</h3>
                         {classCount > 0 && (
-                          <p className="text-xs text-gray-500 mt-1">
+                          <p className="text-xs text-gray-600 dark:text-gray-500 mt-1">
                             {classCount} {classCount === 1 ? 'clase' : 'clases'}
                           </p>
                         )}
@@ -192,20 +235,20 @@ export default function TrainersPage() {
 
                   <div className="space-y-2 mb-4">
                     {trainer.email && (
-                      <div className="flex items-center gap-2 text-sm text-gray-400">
+                      <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                         <Mail className="w-4 h-4" />
                         <span>{trainer.email}</span>
                       </div>
                     )}
                     {trainer.phone && (
-                      <div className="flex items-center gap-2 text-sm text-gray-400">
+                      <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                         <Phone className="w-4 h-4" />
                         <span>{trainer.phone}</span>
                       </div>
                     )}
                   </div>
 
-                  <div className="flex gap-2 pt-4 border-t border-dark-700/50">
+                  <div className="flex gap-2 pt-4 border-t border-gray-200 dark:border-dark-700/50">
                     <Button
                       variant="secondary"
                       size="sm"
@@ -225,7 +268,7 @@ export default function TrainersPage() {
                       Eliminar
                     </Button>
                   </div>
-                </Card>
+                </div>
               );
             })}
           </div>
@@ -233,12 +276,12 @@ export default function TrainersPage() {
 
         {/* Stats */}
         {filteredTrainers.length > 0 && (
-          <Card className="p-4 bg-dark-800/30">
+          <div className="bg-gray-50 dark:bg-dark-800/30 border border-gray-200 dark:border-dark-700/50 rounded-xl p-4">
             <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-400">Total de entrenadores:</span>
-              <span className="text-gray-50 font-semibold">{filteredTrainers.length}</span>
+              <span className="text-gray-600 dark:text-gray-400">Total de entrenadores:</span>
+              <span className="text-gray-900 dark:text-gray-50 font-semibold">{filteredTrainers.length}</span>
             </div>
-          </Card>
+          </div>
         )}
       </div>
 
@@ -292,8 +335,24 @@ export default function TrainersPage() {
           </div>
         </div>
       </Modal>
+
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        onClose={() => setConfirmDialog({
+          isOpen: false,
+          trainer: null,
+          message: '',
+        })}
+        onConfirm={handleConfirmDelete}
+        title="Eliminar Entrenador"
+        message={confirmDialog.message}
+        variant="danger"
+      />
     </MainLayout>
   );
 }
+
+
+
 
 

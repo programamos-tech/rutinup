@@ -16,7 +16,7 @@ export function Loader({ size = 'md', text, fullScreen = false }: LoaderProps) {
   };
 
   const containerClasses = fullScreen
-    ? 'min-h-screen bg-dark-900 flex items-center justify-center'
+    ? 'min-h-screen bg-white dark:bg-dark-900 flex items-center justify-center'
     : 'flex items-center justify-center py-12';
 
   return (
@@ -25,9 +25,12 @@ export function Loader({ size = 'md', text, fullScreen = false }: LoaderProps) {
         <div
           className={`animate-spin rounded-full border-b-2 border-primary-500 mx-auto mb-4 ${sizeClasses[size]}`}
         />
-        {text && <p className="text-gray-400">{text}</p>}
+        {text && <p className="text-gray-600 dark:text-gray-400">{text}</p>}
       </div>
     </div>
   );
 }
+
+
+
 

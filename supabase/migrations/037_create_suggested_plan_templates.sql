@@ -133,3 +133,6 @@ COMMENT ON TABLE suggested_plan_templates IS
   'Plantillas sugeridas de planes que todos los gyms pueden ver y usar como base para crear sus propios planes';
 
 
+
+
+

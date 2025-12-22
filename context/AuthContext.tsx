@@ -11,6 +11,14 @@ interface UserProfile {
   email: string;
   name: string;
   role: 'admin' | 'receptionist' | 'trainer';
+  permissions?: {
+    dashboard?: boolean;
+    payments?: boolean;
+    memberships?: boolean;
+    clients?: boolean;
+    trainers?: boolean;
+    classes?: boolean;
+  };
 }
 
 interface AuthContextType {
@@ -50,7 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const { data, error } = await supabase
         .from('gym_accounts')
-        .select('id, gym_id, email, name, role')
+        .select('id, gym_id, email, name, role, permissions')
         .eq('id', userId)
         .single();
 
@@ -64,7 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return null;
       }
 
-      const profile = data as UserProfile;
+      const profile = data as UserProfile & { permissions?: any };
       setUserProfile(profile);
       return profile;
     } catch (error) {
@@ -254,13 +262,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: new Error('No se pudo cargar el perfil del usuario') };
       }
 
-        // Verificar estado del onboarding
-        if (profile && profile.gym_id) {
-          const { data: gymData, error: gymError } = await supabase
-            .from('gyms')
-            .select('onboarding_step')
-            .eq('id', profile.gym_id)
-            .single();
+      // Solo los admins deben pasar por el onboarding
+      // Los demás usuarios (receptionist, trainer, etc.) van al primer módulo con permisos
+      if (profile.role !== 'admin') {
+        // Obtener permisos del usuario (pueden estar en el perfil o en user_metadata)
+        const permissions = (profile as any).permissions || {};
+        
+        // Mapeo de permisos a rutas (en orden de prioridad)
+        const permissionRoutes = [
+          { permission: 'dashboard', route: '/dashboard' },
+          { permission: 'clients', route: '/clients' },
+          { permission: 'memberships', route: '/memberships' },
+          { permission: 'classes', route: '/classes' },
+          { permission: 'trainers', route: '/trainers' },
+        ];
+
+        // Encontrar el primer módulo al que tiene acceso
+        const firstAllowedRoute = permissionRoutes.find(
+          ({ permission }) => permissions[permission] === true
+        );
+
+        // Si tiene al menos un permiso, redirigir al primer módulo permitido
+        // Si no tiene permisos, redirigir al dashboard por defecto
+        const redirectRoute = firstAllowedRoute?.route || '/payments';
+        router.push(redirectRoute);
+        setLoading(false);
+        return { error: null };
+      }
+
+      // Para admins, verificar estado del onboarding
+      if (profile && profile.gym_id) {
+        const { data: gymData, error: gymError } = await supabase
+          .from('gyms')
+          .select('onboarding_step')
+          .eq('id', profile.gym_id)
+          .single();
 
         if (gymError) {
           console.error('Error checking onboarding status:', gymError);
@@ -272,7 +308,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (onboardingStep !== null && onboardingStep !== undefined) {
           router.push('/onboarding');
         } else {
-          router.push('/memberships');
+          router.push('/dashboard');
         }
       } else {
         // Si no hay gym_id, redirigir al onboarding
@@ -364,6 +400,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: new Error('No se pudo crear el perfil. Por favor, intenta nuevamente.') };
       }
 
+      // Establecer el usuario y perfil en el estado
+      setUser(data.user);
+      
+      // Esperar un momento para que las cookies se sincronicen
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Refrescar el router para que el middleware vea las cookies actualizadas
+      router.refresh();
+      
+      // Pequeño delay adicional antes de redirigir
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
       // Redirigir al onboarding
       router.push('/onboarding');
 

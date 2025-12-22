@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { useAuth } from '@/context/AuthContext';
-import { ArrowRight, CheckCircle2, Shield, Zap, TrendingUp } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Shield, Zap, TrendingUp, Eye, EyeOff } from 'lucide-react';
 
 const cities = [
   { value: 'Sincelejo', label: 'Sincelejo' },
@@ -28,6 +28,8 @@ export default function RegisterPage() {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -211,7 +213,7 @@ export default function RegisterPage() {
       </div>
 
       {/* Right Side - Form */}
-      <div className="flex-1 lg:w-1/2 bg-dark-900 flex items-center justify-center p-6 lg:p-12">
+      <div className="flex-1 lg:w-1/2 bg-white dark:bg-dark-900 flex items-center justify-center p-6 lg:p-12">
         <div className="w-full max-w-md">
           {/* Mobile Logo */}
           <div className="lg:hidden mb-8 text-center">
@@ -219,21 +221,21 @@ export default function RegisterPage() {
               <span className="bg-gradient-to-r from-primary-500 to-primary-600 bg-clip-text text-transparent">
                 RUTIN
               </span>
-              <span className="text-gray-50">UP</span>
+              <span className="text-gray-900 dark:text-gray-50">UP</span>
             </h1>
-            <p className="text-gray-400 font-medium -mt-1 mb-2" style={{ fontSize: 'calc(2.25rem * 0.28)' }}>Administra tu Gimnasio</p>
+            <p className="text-gray-600 dark:text-gray-400 font-medium -mt-1 mb-2" style={{ fontSize: 'calc(2.25rem * 0.28)' }}>Administra tu Gimnasio</p>
           </div>
 
           <div className="mb-8">
-            <h2 className="text-3xl font-bold text-gray-50 mb-2">Crea tu cuenta</h2>
-            <p className="text-gray-400">
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-50 mb-2">Crea tu cuenta</h2>
+            <p className="text-gray-600 dark:text-gray-400">
               Comienza a gestionar tu gimnasio en minutos
             </p>
           </div>
 
           {errors.general && (
             <div className="mb-6 p-4 bg-danger-500/20 border border-danger-500/50 rounded-lg">
-              <p className="text-sm text-danger-400">{errors.general}</p>
+              <p className="text-sm text-danger-500 dark:text-danger-400">{errors.general}</p>
             </div>
           )}
 
@@ -284,34 +286,62 @@ export default function RegisterPage() {
             />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                label="Contraseña"
-                type="password"
-                value={formData.password}
-                onChange={(e) => {
-                  setFormData({ ...formData, password: e.target.value });
-                  if (errors.password) setErrors({ ...errors, password: '' });
-                }}
-                error={errors.password}
-                required
-                maxLength={128}
-                placeholder="Mínimo 8 caracteres"
-                className="w-full"
-              />
-              <Input
-                label="Confirmar contraseña"
-                type="password"
-                value={formData.confirmPassword}
-                onChange={(e) => {
-                  setFormData({ ...formData, confirmPassword: e.target.value });
-                  if (errors.confirmPassword) setErrors({ ...errors, confirmPassword: '' });
-                }}
-                error={errors.confirmPassword}
-                required
-                maxLength={128}
-                placeholder="Repite tu contraseña"
-                className="w-full"
-              />
+              <div className="relative">
+                <Input
+                  label="Contraseña"
+                  type={showPassword ? "text" : "password"}
+                  value={formData.password}
+                  onChange={(e) => {
+                    setFormData({ ...formData, password: e.target.value });
+                    if (errors.password) setErrors({ ...errors, password: '' });
+                  }}
+                  error={errors.password}
+                  required
+                  maxLength={128}
+                  placeholder="Mínimo 8 caracteres"
+                  className="w-full"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-[38px] text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors focus:outline-none"
+                  tabIndex={-1}
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-5 h-5" />
+                  ) : (
+                    <Eye className="w-5 h-5" />
+                  )}
+                </button>
+              </div>
+              <div className="relative">
+                <Input
+                  label="Confirmar contraseña"
+                  type={showConfirmPassword ? "text" : "password"}
+                  value={formData.confirmPassword}
+                  onChange={(e) => {
+                    setFormData({ ...formData, confirmPassword: e.target.value });
+                    if (errors.confirmPassword) setErrors({ ...errors, confirmPassword: '' });
+                  }}
+                  error={errors.confirmPassword}
+                  required
+                  maxLength={128}
+                  placeholder="Repite tu contraseña"
+                  className="w-full"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-[38px] text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors focus:outline-none"
+                  tabIndex={-1}
+                >
+                  {showConfirmPassword ? (
+                    <EyeOff className="w-5 h-5" />
+                  ) : (
+                    <Eye className="w-5 h-5" />
+                  )}
+                </button>
+              </div>
             </div>
 
             <Select
@@ -360,7 +390,7 @@ export default function RegisterPage() {
                   <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
                     formData.acceptTerms
                       ? 'bg-primary-500 border-primary-500'
-                      : 'bg-dark-800 border-dark-600'
+                      : 'bg-white dark:bg-dark-800 border-gray-300 dark:border-dark-600'
                   }`}>
                     {formData.acceptTerms && (
                       <svg className="w-3.5 h-3.5 text-white" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" viewBox="0 0 24 24" stroke="currentColor">
@@ -369,19 +399,19 @@ export default function RegisterPage() {
                     )}
                   </div>
                 </div>
-                <span className="text-sm text-gray-300 leading-relaxed">
+                <span className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
                   Acepto los{' '}
-                  <Link href="/terms" className="text-primary-400 hover:text-primary-300 underline transition-colors">
+                  <Link href="/terms" className="text-primary-500 dark:text-primary-400 hover:text-primary-600 dark:hover:text-primary-300 underline transition-colors">
                     términos y condiciones
                   </Link>
                   {' '}y la{' '}
-                  <Link href="/privacy" className="text-primary-400 hover:text-primary-300 underline transition-colors">
+                  <Link href="/privacy" className="text-primary-500 dark:text-primary-400 hover:text-primary-600 dark:hover:text-primary-300 underline transition-colors">
                     política de privacidad
                   </Link>
                 </span>
               </label>
               {errors.acceptTerms && (
-                <p className="mt-2 text-sm text-danger-400">{errors.acceptTerms}</p>
+                <p className="mt-2 text-sm text-danger-500 dark:text-danger-400">{errors.acceptTerms}</p>
               )}
             </div>
 
@@ -404,23 +434,23 @@ export default function RegisterPage() {
           </form>
 
           <div className="mt-6 text-center">
-            <p className="text-sm text-gray-400">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
               ¿Ya tienes una cuenta?{' '}
-              <Link href="/login" className="text-primary-400 hover:text-primary-300 font-medium transition-colors">
+              <Link href="/login" className="text-primary-500 dark:text-primary-400 hover:text-primary-600 dark:hover:text-primary-300 font-medium transition-colors">
                 Iniciar sesión
               </Link>
             </p>
           </div>
 
-          <div className="mt-8 pt-6 border-t border-dark-700/50">
-            <div className="flex items-center justify-center gap-6 text-xs text-gray-500">
-              <Link href="/terms" className="hover:text-gray-400 transition-colors">
+          <div className="mt-8 pt-6 border-t border-gray-200 dark:border-dark-700/50">
+            <div className="flex items-center justify-center gap-6 text-xs text-gray-600 dark:text-gray-500">
+              <Link href="/terms" className="hover:text-gray-800 dark:hover:text-gray-400 transition-colors">
                 Términos
               </Link>
-              <Link href="/privacy" className="hover:text-gray-400 transition-colors">
+              <Link href="/privacy" className="hover:text-gray-800 dark:hover:text-gray-400 transition-colors">
                 Privacidad
               </Link>
-              <Link href="/contact" className="hover:text-gray-400 transition-colors">
+              <Link href="/contact" className="hover:text-gray-800 dark:hover:text-gray-400 transition-colors">
                 Contacto
               </Link>
             </div>

@@ -76,3 +76,6 @@ CREATE POLICY "Users can view users from their gym"
 -- 3. The cache is kept in sync automatically via trigger
 
 
+
+
+

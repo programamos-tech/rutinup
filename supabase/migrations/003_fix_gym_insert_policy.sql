@@ -6,3 +6,6 @@ CREATE POLICY "Allow gym creation during registration"
   WITH CHECK (auth.uid() IS NOT NULL);
 
 
+
+
+

@@ -6,10 +6,10 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { Select } from '@/components/ui/Select';
-import { Tooltip } from '@/components/ui/Tooltip';
 import { useApp } from '@/context/AppContext';
 import { Class } from '@/types';
 import { format, startOfWeek, addDays, isSameDay, addWeeks, subWeeks } from 'date-fns';
@@ -63,15 +63,33 @@ export default function ClassesPage() {
   const [filterTrainer, setFilterTrainer] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
   const [selectedDateForAttendance, setSelectedDateForAttendance] = useState<Date | null>(null);
+  const [confirmDeleteDialog, setConfirmDeleteDialog] = useState<{
+    isOpen: boolean;
+    classId: string | null;
+    className: string;
+  }>({
+    isOpen: false,
+    classId: null,
+    className: '',
+  });
 
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 }); // Lunes
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
   const filteredClasses = classes.filter((classItem) => {
+    // Filtro por entrenador
     if (filterTrainer !== 'all' && classItem.trainerId !== filterTrainer) return false;
-    if (filterStatus === 'active' && classItem.status !== 'active') return false;
-    if (filterStatus === 'inactive' && classItem.status === 'active') return false;
-    return true;
+    
+    // Filtro por estado
+    if (filterStatus === 'active') {
+      return classItem.status === 'active';
+    }
+    if (filterStatus === 'inactive') {
+      // Inactivas: cualquier estado que no sea 'active' (inactive o suspended)
+      return classItem.status !== 'active';
+    }
+    
+    return true; // 'all' muestra todas
   });
 
   const getEnrollmentCount = (classId: string) => {
@@ -115,11 +133,11 @@ export default function ClassesPage() {
 
   return (
     <MainLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 min-h-[calc(100vh-200px)] flex flex-col">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold text-gray-50" data-tour="classes-header">Clases</h1>
-            <p className="text-gray-400 mt-1">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-50" data-tour="classes-header">Clases</h1>
+            <p className="text-gray-600 dark:text-gray-400 mt-1">
               Organiza tus clases grupales, gestiona horarios, inscribe miembros y toma asistencia diaria.
             </p>
           </div>
@@ -134,14 +152,41 @@ export default function ClassesPage() {
           </div>
         </div>
 
-        {/* Tabs de vista */}
-        <div className="flex gap-2 border-b border-dark-700/50" data-tour="classes-views">
+        {/* Estado vacío cuando no hay clases */}
+        {classes.length === 0 ? (
+          <div className="flex-1 flex items-center justify-center py-12">
+            <div className="w-full max-w-xl text-center">
+              <Calendar className="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 mb-4" />
+              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-50 mb-3">
+                Crea tu primera clase
+              </h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                Las clases son las <strong className="text-gray-900 dark:text-gray-50">actividades grupales que ofreces en tu gimnasio</strong>. Organiza horarios, asigna entrenadores, inscribe miembros y toma asistencia.
+              </p>
+              <div className="flex justify-center">
+                <Button
+                  variant="primary"
+                  onClick={() => {
+                    setEditingClass(null);
+                    setShowClassModal(true);
+                  }}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Crear mi primera clase
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Tabs de vista */}
+            <div className="flex gap-2 border-b border-gray-200 dark:border-dark-700/50" data-tour="classes-views">
           <button
             onClick={() => setViewMode('calendar')}
             className={`px-4 py-2 font-medium text-sm transition-all ${
               viewMode === 'calendar'
-                ? 'text-primary-400 border-b-2 border-primary-500'
-                : 'text-gray-400 hover:text-gray-300'
+                ? 'text-primary-500 dark:text-primary-400 border-b-2 border-primary-500'
+                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300'
             }`}
           >
             <Calendar className="w-4 h-4 inline mr-2" />
@@ -151,8 +196,8 @@ export default function ClassesPage() {
             onClick={() => setViewMode('list')}
             className={`px-4 py-2 font-medium text-sm transition-all ${
               viewMode === 'list'
-                ? 'text-primary-400 border-b-2 border-primary-500'
-                : 'text-gray-400 hover:text-gray-300'
+                ? 'text-primary-500 dark:text-primary-400 border-b-2 border-primary-500'
+                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300'
             }`}
           >
             <List className="w-4 h-4 inline mr-2" />
@@ -205,7 +250,7 @@ export default function ClassesPage() {
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </Button>
-                <h2 className="text-lg font-semibold text-gray-50">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-50">
                   {format(weekStart, 'dd MMM')} - {format(addDays(weekStart, 6), 'dd MMM yyyy')}
                 </h2>
                 <Button
@@ -229,8 +274,8 @@ export default function ClassesPage() {
                 const dayOfWeek = day.getDay(); // 0 = Domingo, 1 = Lunes, etc.
                 return (
                   <div key={index} className="text-center py-2">
-                    <p className="text-xs text-gray-400 font-medium">{DAYS_SHORT[dayOfWeek]}</p>
-                    <p className="text-sm text-gray-300 font-semibold mt-1">
+                    <p className="text-xs text-gray-600 dark:text-gray-400 font-medium">{DAYS_SHORT[dayOfWeek]}</p>
+                    <p className="text-sm text-gray-700 dark:text-gray-300 font-semibold mt-1">
                       {format(day, 'd')}
                     </p>
                   </div>
@@ -243,10 +288,10 @@ export default function ClassesPage() {
                 return (
                   <div
                     key={dayIndex}
-                    className="min-h-[200px] p-2 bg-dark-800/30 rounded-lg border border-dark-700/30"
+                    className="min-h-[200px] p-2 bg-gray-50 dark:bg-dark-800/30 rounded-lg border border-gray-200 dark:border-dark-700/30"
                   >
                     {dayClasses.length === 0 ? (
-                      <p className="text-xs text-gray-500 text-center mt-2">Sin clases</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-500 text-center mt-2">Sin clases</p>
                     ) : (
                       <div className="space-y-2">
                         {dayClasses.map((classItem) => {
@@ -257,29 +302,25 @@ export default function ClassesPage() {
                           return (
                             <div
                               key={classItem.id}
-                              className={`p-2 rounded text-xs cursor-pointer transition-all ${
-                                classItem.color 
-                                  ? `bg-[${classItem.color}]/20 border border-[${classItem.color}]/50`
-                                  : 'bg-primary-500/20 border border-primary-500/50'
-                              } ${isFull ? 'opacity-60' : ''}`}
+                              className={`p-2 rounded text-xs cursor-pointer transition-all border border-gray-200 dark:border-dark-700/50 bg-gray-50 dark:bg-dark-800/30 ${isFull ? 'opacity-60' : ''}`}
                               onClick={() => {
                                 setSelectedClass(classItem);
                                 setSelectedDateForAttendance(day);
                                 setShowAttendanceModal(true);
                               }}
                             >
-                              <p className="font-semibold text-gray-50">{classItem.name}</p>
-                              <p className="text-gray-400">{formatTime(classItem.startTime)}</p>
+                              <div className="flex items-center gap-2 mb-1">
+                                <div 
+                                  className="w-2 h-2 rounded-full flex-shrink-0"
+                                  style={{ backgroundColor: classItem.color || '#ef4444' }}
+                                />
+                                <p className="font-semibold text-gray-900 dark:text-gray-50">{classItem.name}</p>
+                              </div>
+                              <p className="text-gray-600 dark:text-gray-400">{formatTime(classItem.startTime)}</p>
                               <div className="flex items-center gap-1">
-                                <p className="text-gray-500">
+                                <p className="text-gray-600 dark:text-gray-500">
                                   {trainer?.name} • {enrollmentCount} de {classItem.capacity} inscritos
                                 </p>
-                                <Tooltip 
-                                  content={`${enrollmentCount} personas inscritas de una capacidad máxima de ${classItem.capacity}`}
-                                  icon
-                                  position="top"
-                                  className="ml-1"
-                                />
                               </div>
                             </div>
                           );
@@ -299,14 +340,7 @@ export default function ClassesPage() {
             {filteredClasses.length === 0 ? (
               <Card>
                 <div className="text-center py-12">
-                  <p className="text-gray-400 mb-4">No hay clases creadas aún</p>
-                  <Button variant="primary" onClick={() => {
-                    setEditingClass(null);
-                    setShowClassModal(true);
-                  }}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Crear Primera Clase
-                  </Button>
+                  <p className="text-gray-600 dark:text-gray-400 mb-4">No se encontraron clases con los filtros seleccionados</p>
                 </div>
               </Card>
             ) : (
@@ -318,11 +352,18 @@ export default function ClassesPage() {
                 const classDays = classItem.daysOfWeek.map((d) => DAYS_OF_WEEK[d]).join(', ');
 
                 return (
-                  <Card key={classItem.id}>
+                  <div 
+                    key={classItem.id} 
+                    className="bg-gray-50 dark:bg-dark-800/50 p-5 rounded-xl border border-gray-200 dark:border-dark-700/50"
+                  >
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
-                          <h3 className="text-lg font-semibold text-gray-50">{classItem.name}</h3>
+                          <div 
+                            className="w-2 h-2 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: classItem.color || '#ef4444' }}
+                          />
+                          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-50">{classItem.name}</h3>
                           <Badge variant={classItem.status === 'active' ? 'success' : 'danger'}>
                             {classItem.status === 'active' ? 'Activa' : 'Inactiva'}
                           </Badge>
@@ -330,20 +371,15 @@ export default function ClassesPage() {
                             <Badge variant="warning">Llena</Badge>
                           )}
                         </div>
-                        <p className="text-sm text-gray-400 mb-1">
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
                           {trainer?.name || 'Sin entrenador'} • {classDays} • {formatTime(classItem.startTime)} ({classItem.duration} min)
                         </p>
                         <div className="flex items-center gap-4 mt-2">
-                          <div className="flex items-center gap-1 text-sm text-gray-400">
+                          <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
                             <Users className="w-4 h-4" />
                             <span>{enrollmentCount} de {classItem.capacity} inscritos</span>
-                            <Tooltip 
-                              content={`${enrollmentCount} personas inscritas de una capacidad máxima de ${classItem.capacity}`}
-                              icon
-                              position="top"
-                            />
                           </div>
-                          <div className="flex items-center gap-1 text-sm text-gray-400">
+                          <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
                             <CheckCircle className="w-4 h-4 text-success-400" />
                             <span>{attendanceRate}% asistencia</span>
                           </div>
@@ -394,10 +430,12 @@ export default function ClassesPage() {
                         <Button
                           variant="danger"
                           className="p-2"
-                          onClick={async () => {
-                            if (confirm('¿Estás seguro de eliminar esta clase?')) {
-                              await deleteClass(classItem.id);
-                            }
+                          onClick={() => {
+                            setConfirmDeleteDialog({
+                              isOpen: true,
+                              classId: classItem.id,
+                              className: classItem.name,
+                            });
                           }}
                           title="Eliminar"
                         >
@@ -405,11 +443,13 @@ export default function ClassesPage() {
                         </Button>
                       </div>
                     </div>
-                  </Card>
+                  </div>
                 );
               })
             )}
           </div>
+        )}
+          </>
         )}
 
       </div>
@@ -474,6 +514,28 @@ export default function ClassesPage() {
 
         </>
       )}
+
+      <ConfirmDialog
+        isOpen={confirmDeleteDialog.isOpen}
+        onClose={() => setConfirmDeleteDialog({
+          isOpen: false,
+          classId: null,
+          className: '',
+        })}
+        onConfirm={async () => {
+          if (confirmDeleteDialog.classId) {
+            await deleteClass(confirmDeleteDialog.classId);
+            setConfirmDeleteDialog({
+              isOpen: false,
+              classId: null,
+              className: '',
+            });
+          }
+        }}
+        title="Eliminar Clase"
+        message={`¿Estás seguro de eliminar la clase "${confirmDeleteDialog.className}"? Esta acción no se puede deshacer.`}
+        variant="danger"
+      />
     </MainLayout>
   );
 }
@@ -492,6 +554,19 @@ function ClassModal({
 }) {
   const { trainers } = useApp();
   const defaultTrainerId = trainers.length > 0 ? trainers[0].id : '';
+  
+  // Generar lista de horas en formato AM/PM (5:00 AM - 11:00 PM)
+  const timeOptions = React.useMemo(() => {
+    const options: Array<{ value: string; label: string }> = [];
+    for (let hour = 5; hour <= 23; hour++) {
+      const hour12 = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
+      const period = hour >= 12 ? 'PM' : 'AM';
+      const time24 = `${hour.toString().padStart(2, '0')}:00`;
+      const time12 = `${hour12}:00 ${period}`;
+      options.push({ value: time24, label: time12 });
+    }
+    return options;
+  }, []);
   
   const [formData, setFormData] = useState({
     name: classItem?.name || '',
@@ -513,6 +588,39 @@ function ClassModal({
       setFormData({ ...formData, trainerId: trainers[0].id });
     }
   }, [trainers]);
+
+  // Actualizar formData cuando cambia classItem
+  React.useEffect(() => {
+    if (classItem) {
+      setFormData({
+        name: classItem.name,
+        trainerId: classItem.trainerId,
+        daysOfWeek: classItem.daysOfWeek,
+        startTime: classItem.startTime,
+        duration: classItem.duration,
+        capacity: classItem.capacity,
+        description: classItem.description || '',
+        requiresMembership: classItem.requiresMembership ?? true,
+        additionalPrice: classItem.additionalPrice || 0,
+        color: classItem.color || '#ef4444',
+        status: classItem.status || 'active',
+      });
+    } else {
+      setFormData({
+        name: '',
+        trainerId: defaultTrainerId,
+        daysOfWeek: [],
+        startTime: '08:00',
+        duration: 60,
+        capacity: 20,
+        description: '',
+        requiresMembership: true,
+        additionalPrice: 0,
+        color: '#ef4444',
+        status: 'active',
+      });
+    }
+  }, [classItem, defaultTrainerId]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -567,7 +675,7 @@ function ClassModal({
         />
 
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">Días de la semana</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Días de la semana</label>
           <div className="grid grid-cols-7 gap-2">
             {DAYS_OF_WEEK.map((day, index) => (
               <button
@@ -577,7 +685,7 @@ function ClassModal({
                 className={`p-2 rounded-lg text-sm font-medium transition-all ${
                   formData.daysOfWeek.includes(index)
                     ? 'bg-primary-500 text-white'
-                    : 'bg-dark-800/30 text-gray-400 hover:bg-dark-800/50'
+                    : 'bg-gray-100 dark:bg-dark-800/30 text-gray-700 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-dark-800/50'
                 }`}
               >
                 {DAYS_SHORT[index]}
@@ -587,20 +695,37 @@ function ClassModal({
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <Input
+          <Select
             label="Hora de inicio"
-            type="time"
             value={formData.startTime}
             onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
             required
+            options={[
+              { value: '', label: 'Seleccionar hora...' },
+              ...timeOptions
+            ]}
           />
           <Input
             label="Duración (minutos)"
             type="number"
-            value={formData.duration}
-            onChange={(e) => setFormData({ ...formData, duration: parseInt(e.target.value) || 60 })}
+            value={formData.duration || ''}
+            onChange={(e) => {
+              const value = e.target.value;
+              // Permitir campo vacío mientras se escribe
+              if (value === '') {
+                setFormData({ ...formData, duration: 0 });
+                return;
+              }
+              // Remover ceros a la izquierda y convertir a número
+              const cleanedValue = value.replace(/^0+/, '') || '0';
+              const numValue = parseInt(cleanedValue, 10);
+              // Solo actualizar si es un número válido
+              if (!isNaN(numValue)) {
+                setFormData({ ...formData, duration: numValue });
+              }
+            }}
             required
-            min={15}
+            min={1}
           />
         </div>
 
@@ -608,13 +733,27 @@ function ClassModal({
           <Input
             label="Capacidad máxima"
             type="number"
-            value={formData.capacity}
-            onChange={(e) => setFormData({ ...formData, capacity: parseInt(e.target.value) || 20 })}
+            value={formData.capacity || ''}
+            onChange={(e) => {
+              const value = e.target.value;
+              // Permitir campo vacío mientras se escribe
+              if (value === '') {
+                setFormData({ ...formData, capacity: 0 });
+                return;
+              }
+              // Remover ceros a la izquierda y convertir a número
+              const cleanedValue = value.replace(/^0+/, '') || '0';
+              const numValue = parseInt(cleanedValue, 10);
+              // Solo actualizar si es un número válido
+              if (!isNaN(numValue)) {
+                setFormData({ ...formData, capacity: numValue });
+              }
+            }}
             required
             min={1}
           />
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Color</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Color</label>
             <input
               type="color"
               value={formData.color}
@@ -633,14 +772,14 @@ function ClassModal({
         />
 
         <div className="grid grid-cols-2 gap-4">
-          <label className="flex items-center gap-2 cursor-pointer p-3 bg-dark-800/30 rounded-lg border border-dark-700/30">
+          <label className="flex items-center gap-2 cursor-pointer p-3 bg-gray-50 dark:bg-dark-800/30 rounded-lg border border-gray-200 dark:border-dark-700/30">
             <input
               type="checkbox"
               checked={formData.requiresMembership}
               onChange={(e) => setFormData({ ...formData, requiresMembership: e.target.checked })}
-              className="w-4 h-4 rounded border-dark-600 bg-dark-800 text-primary-500 focus:ring-primary-500"
+              className="w-4 h-4 rounded border-gray-300 dark:border-dark-600 bg-white dark:bg-dark-800 text-primary-500 focus:ring-primary-500"
             />
-            <span className="text-sm text-gray-300">Requiere membresía</span>
+            <span className="text-sm text-gray-700 dark:text-gray-300">Requiere membresía</span>
           </label>
           {!formData.requiresMembership && (
             <Input
@@ -664,7 +803,7 @@ function ClassModal({
           onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
         />
 
-        <div className="flex justify-end gap-3 pt-4 border-t border-dark-700/30">
+        <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-dark-700/30">
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancelar
           </Button>
@@ -807,9 +946,9 @@ function EnrollmentsModal({
     <Modal isOpen={isOpen} onClose={onClose} title={`Inscripciones - ${classItem.name}`}>
       <div className="space-y-4">
         {/* Header con estadísticas y botón */}
-        <div className="flex justify-between items-center pb-3 border-b border-dark-700/30">
+        <div className="flex justify-between items-center pb-3 border-b border-gray-200 dark:border-dark-700/30">
           <div>
-            <p className="text-sm font-medium text-gray-300">
+            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
               {classEnrollments.length} de {classItem.capacity} inscritos
             </p>
             {classEnrollments.length >= classItem.capacity && (
@@ -830,7 +969,7 @@ function EnrollmentsModal({
 
         {/* Formulario de inscripción */}
         {showEnrollForm && (
-          <div className="p-3 bg-dark-800/30 rounded-lg border border-dark-700/30">
+          <div className="p-3 bg-gray-50 dark:bg-dark-800/30 rounded-lg border border-gray-200 dark:border-dark-700/30">
             <div className="space-y-3">
               <Select
                 label="Seleccionar miembro"
@@ -868,16 +1007,16 @@ function EnrollmentsModal({
 
         {/* Lista de miembros inscritos */}
         <div>
-          <h3 className="text-sm font-medium text-gray-300 mb-3">
+          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
             Miembros Inscritos
           </h3>
           <div className="space-y-2 max-h-96 overflow-y-auto">
             {classEnrollments.length === 0 ? (
-              <div className="text-center py-8 bg-dark-800/20 rounded-lg border border-dark-700/20">
-                <Users className="w-8 h-8 text-gray-500 mx-auto mb-2" />
-                <p className="text-sm text-gray-400">No hay miembros inscritos</p>
+              <div className="text-center py-8 bg-gray-50 dark:bg-dark-800/20 rounded-lg border border-gray-200 dark:border-dark-700/20">
+                <Users className="w-8 h-8 text-gray-500 dark:text-gray-500 mx-auto mb-2" />
+                <p className="text-sm text-gray-600 dark:text-gray-400">No hay miembros inscritos</p>
                 {availableClients.length === 0 && (
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
                     Todos los miembros disponibles ya están inscritos
                   </p>
                 )}
@@ -890,11 +1029,11 @@ function EnrollmentsModal({
                 return (
                   <div
                     key={enrollment.id}
-                    className="flex justify-between items-center p-3 bg-dark-800/30 rounded-lg border border-dark-700/30 hover:border-dark-600/50 transition-colors"
+                    className="flex justify-between items-center p-3 bg-white dark:bg-dark-800/30 rounded-lg border border-gray-200 dark:border-dark-700/30 hover:border-gray-300 dark:hover:border-dark-600/50 transition-colors"
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-50 truncate">{client.name}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">
+                      <p className="font-medium text-gray-900 dark:text-gray-50 truncate">{client.name}</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
                         Inscrito el {format(new Date(enrollment.enrolledAt), 'dd/MM/yyyy')}
                       </p>
                     </div>
@@ -1005,7 +1144,7 @@ function AttendanceModal({
       <div className="space-y-4">
         {/* Fecha */}
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Fecha de la clase
           </label>
           <div className="relative">
@@ -1039,7 +1178,7 @@ function AttendanceModal({
                   input.showPicker();
                 }
               }}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-100 hover:text-white transition-colors pointer-events-auto"
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-600 dark:text-gray-100 hover:text-gray-900 dark:hover:text-white transition-colors pointer-events-auto"
             >
               <Calendar className="w-5 h-5" />
             </button>
@@ -1070,14 +1209,14 @@ function AttendanceModal({
 
         {/* Lista de miembros - Vertical */}
         <div>
-          <h3 className="text-sm font-semibold text-gray-300 mb-3">
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
             Marcar asistencia
           </h3>
           <div className="space-y-2 max-h-[400px] overflow-y-auto">
             {classEnrollments.length === 0 ? (
-              <div className="text-center py-12 bg-dark-800/20 rounded-lg border border-dark-700/20">
-                <Users className="w-10 h-10 text-gray-500 mx-auto mb-3" />
-                <p className="text-sm text-gray-400">No hay miembros inscritos</p>
+              <div className="text-center py-12 bg-gray-50 dark:bg-dark-800/20 rounded-lg border border-gray-200 dark:border-dark-700/20">
+                <Users className="w-10 h-10 text-gray-500 dark:text-gray-500 mx-auto mb-3" />
+                <p className="text-sm text-gray-600 dark:text-gray-400">No hay miembros inscritos</p>
               </div>
             ) : (
               classEnrollments.map((enrollment) => {
@@ -1093,20 +1232,20 @@ function AttendanceModal({
                     className={`flex items-center gap-4 p-4 rounded-lg border cursor-pointer transition-all ${
                       isPresent
                         ? 'bg-primary-500/5 border-primary-500/30'
-                        : 'bg-dark-800/30 border-dark-700/30'
-                    } hover:bg-dark-800/40`}
+                        : 'bg-white dark:bg-dark-800/30 border-gray-200 dark:border-dark-700/30'
+                    } hover:bg-gray-50 dark:hover:bg-dark-800/40`}
                   >
                     <input
                       type="checkbox"
                       checked={isPresent}
                       onChange={(e) => handleCheckboxChange(client.id, e.target.checked)}
-                      className="w-5 h-5 rounded border-dark-600 bg-dark-800 text-primary-500 focus:ring-primary-500 focus:ring-2 focus:ring-offset-0 cursor-pointer accent-primary-500 flex-shrink-0"
+                      className="w-5 h-5 rounded border-gray-300 dark:border-dark-600 bg-white dark:bg-dark-800 text-primary-500 focus:ring-primary-500 focus:ring-2 focus:ring-offset-0 cursor-pointer accent-primary-500 flex-shrink-0"
                     />
                     <div className="flex-1">
-                      <p className="font-medium text-gray-50">{client.name}</p>
+                      <p className="font-medium text-gray-900 dark:text-gray-50">{client.name}</p>
                       {attendance && (
                         <p className={`text-xs mt-1 ${
-                          isPresent ? 'text-primary-400' : 'text-gray-500'
+                          isPresent ? 'text-primary-500 dark:text-primary-400' : 'text-gray-500 dark:text-gray-500'
                         }`}>
                           {isPresent ? 'Presente' : 'Ausente'}
                         </p>

@@ -273,3 +273,6 @@ COMMENT ON COLUMN public.invoice_items.item_type IS
 COMMENT ON COLUMN public.invoice_items.item_id IS 
   'ID del item (product_id, membership_type_id, etc.). NULL para items personalizados';
 
+
+
+

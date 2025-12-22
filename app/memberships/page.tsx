@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { useApp } from '@/context/AppContext';
 import { MembershipType } from '@/types';
-import { Plus, Edit, Copy, Trash2, Check, X, HelpCircle, FileText } from 'lucide-react';
+import { Plus, Edit, Copy, Trash2, Check, X, HelpCircle, FileText, Package } from 'lucide-react';
 import { formatPrice } from '@/utils/format';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
@@ -29,12 +29,9 @@ export default function MembershipsPage() {
     deleteGymCustomService
   } = useApp();
 
-  // Debug: Log para verificar que las plantillas se están cargando
-  useEffect(() => {
-    console.log('📊 Estado en MembershipsPage:');
-    console.log('- suggestedTemplates:', suggestedTemplates.length);
-    console.log('- membershipTypes:', membershipTypes.length);
-  }, [suggestedTemplates, membershipTypes]);
+  // Estado de loading inicial para evitar mostrar el texto de "crear primera membresía" durante la carga
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+
   const [showModal, setShowModal] = useState(false);
   const [editingPlan, setEditingPlan] = useState<MembershipType | null>(null);
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
@@ -55,20 +52,44 @@ export default function MembershipsPage() {
     variant: 'danger',
   });
   
-  // Estado para controlar visibilidad de plantillas (persistido en localStorage)
-  // Inicializar siempre como true para evitar problemas de hidratación
-  const [showTemplates, setShowTemplates] = useState(true);
-  
-  // Cargar preferencia de localStorage después del montaje
-  useEffect(() => {
-    const saved = localStorage.getItem('hideSuggestedTemplates');
-    if (saved === 'true') {
-      setShowTemplates(false);
-    }
-  }, []);
-
   // Separar planes personalizados (no sugeridos o creados desde sugeridas)
   const customPlans = membershipTypes.filter(plan => !plan.isSuggested);
+  
+  // Estado para controlar visibilidad de plantillas - Inicializar como false para evitar flash
+  const [showTemplates, setShowTemplates] = useState(false);
+  
+  // Actualizar showTemplates cuando cambien los planes
+  useEffect(() => {
+    // Si hay planes creados, ocultar plantillas automáticamente
+    if (customPlans.length > 0) {
+      setShowTemplates(false);
+    } else {
+      // Solo mostrar plantillas si NO hay planes y no está guardado en localStorage que se ocultaron
+      const saved = localStorage.getItem('hideSuggestedTemplates');
+      if (saved !== 'true') {
+        setShowTemplates(true);
+      }
+    }
+  }, [customPlans.length]);
+
+  // Marcar como cargado después de un breve delay para permitir que los datos se carguen
+  useEffect(() => {
+    // Esperar un momento para que los datos se carguen desde el contexto
+    const timer = setTimeout(() => {
+      setIsInitialLoading(false);
+    }, 300); // 300ms es suficiente para que los datos se carguen sin ser muy largo
+
+    return () => clearTimeout(timer);
+  }, []);
+  
+  // Debug: Log para verificar que las plantillas se están cargando
+  useEffect(() => {
+    console.log('📊 Estado en MembershipsPage:');
+    console.log('- suggestedTemplates:', suggestedTemplates.length);
+    console.log('- membershipTypes:', membershipTypes.length);
+    console.log('- customPlans:', customPlans.length);
+    console.log('- showTemplates:', showTemplates);
+  }, [suggestedTemplates, membershipTypes, customPlans.length, showTemplates]);
   
   // Verificar si el usuario ha usado alguna plantilla
   const hasUsedTemplate = membershipTypes.some(plan => plan.suggestedTemplateId);
@@ -170,16 +191,16 @@ export default function MembershipsPage() {
 
   return (
     <MainLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 min-h-[calc(100vh-200px)] flex flex-col">
         <div className="flex justify-between items-center">
           <div>
             <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-3xl font-bold text-gray-50" data-tour="memberships-header">Planes de Membresía</h1>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-50" data-tour="memberships-header">Planes de Membresía</h1>
               <span className="px-3 py-1 bg-primary-500/20 text-primary-400 text-xs font-semibold rounded-full border border-primary-500/30">
                 Para tus clientes
               </span>
             </div>
-            <p className="text-gray-400 mt-1">
+            <p className="text-gray-600 dark:text-gray-400 mt-1">
               Crea y gestiona los planes de membresía que ofreces a tus clientes del gimnasio
             </p>
           </div>
@@ -189,15 +210,15 @@ export default function MembershipsPage() {
           </Button>
         </div>
 
-        {/* Plantillas Sugeridas */}
-        {showTemplates && (
+        {/* Plantillas Sugeridas - Solo mostrar si no hay planes creados y terminó el loading */}
+        {!isInitialLoading && showTemplates && customPlans.length === 0 && (
           <Card data-tour="memberships-templates">
             {suggestedTemplates.length > 0 ? (
               <>
               <div className="flex justify-between items-center mb-4">
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-50">Plantillas Sugeridas de Membresías</h2>
-                  <p className="text-sm text-gray-400 mt-1">
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-50">Plantillas Sugeridas de Membresías</h2>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                     Plantillas de planes de membresía que puedes usar como base y personalizar para tus clientes
                   </p>
                 </div>
@@ -216,7 +237,7 @@ export default function MembershipsPage() {
               {suggestedTemplates.map((template) => (
                 <div
                   key={template.id}
-                  className="relative p-4 bg-dark-800/30 border border-dark-700/30 rounded-lg hover:border-primary-500/50 transition-all"
+                  className="relative p-4 bg-gray-50 dark:bg-dark-800/30 border border-gray-200 dark:border-dark-700/30 rounded-lg hover:border-primary-500/50 transition-all"
                 >
                   {/* Badge de Plantilla */}
                   <div className="absolute top-2 right-2 flex items-center gap-1.5 z-10">
@@ -235,9 +256,9 @@ export default function MembershipsPage() {
 
                   <div className="flex justify-between items-start mb-2 pr-20">
                     <div className="flex-1">
-                      <h3 className="font-semibold text-gray-50 mb-1">{template.name}</h3>
+                      <h3 className="font-semibold text-gray-900 dark:text-gray-50 mb-1">{template.name}</h3>
                       <p className="text-sm text-primary-400 mb-2">${formatPrice(template.price)}/mes</p>
-                      <p className="text-xs text-gray-500 mb-3">{template.description}</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-500 mb-3">{template.description}</p>
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -277,13 +298,13 @@ export default function MembershipsPage() {
           </Card>
         )}
         
-        {/* Botón para mostrar plantillas si están ocultas */}
-        {!showTemplates && hasUsedTemplate && (
+        {/* Botón para mostrar plantillas si están ocultas - Solo si no hay planes y terminó el loading */}
+        {!isInitialLoading && !showTemplates && hasUsedTemplate && customPlans.length === 0 && (
           <Card>
             <div className="flex justify-between items-center">
               <div>
-                <h3 className="text-sm font-semibold text-gray-50">Plantillas Sugeridas</h3>
-                <p className="text-xs text-gray-400 mt-1">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-50">Plantillas Sugeridas</h3>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
                   Las plantillas están ocultas. Puedes mostrarlas nuevamente cuando lo necesites.
                 </p>
               </div>
@@ -298,12 +319,51 @@ export default function MembershipsPage() {
           </Card>
         )}
 
-        {/* Solo mostrar filtros y sección de planes si hay planes creados */}
-        {customPlans.length > 0 && (
+        {/* Loading inicial - mostrar logo mientras se cargan los datos */}
+        {isInitialLoading && (
+          <div className="flex-1 flex items-center justify-center min-h-[400px]">
+            <div className="text-center">
+              <div className="relative w-16 h-16 mx-auto mb-4">
+                <div className="absolute inset-0 animate-spin rounded-full border-4 border-gray-200 dark:border-dark-700"></div>
+                <div className="absolute inset-0 animate-spin rounded-full border-4 border-transparent border-t-primary-500"></div>
+              </div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Cargando...</p>
+            </div>
+          </div>
+        )}
+
+        {/* Estado vacío cuando no hay planes - Solo mostrar después de que termine el loading */}
+        {!isInitialLoading && customPlans.length === 0 && (
+          <div className="flex-1 flex items-center justify-center">
+            <Card className="w-full max-w-xl">
+              <div className="text-center py-8">
+                <Package className="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 mb-4" />
+                <h2 className="text-xl font-bold text-gray-900 dark:text-gray-50 mb-3">
+                  Crea tu primer plan de membresía
+                </h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                  Los planes de membresía son los <strong className="text-gray-900 dark:text-gray-50">productos que tu gimnasio ofrece a tus clientes</strong>. Define precios, duración y servicios incluidos.
+                </p>
+                <div className="flex justify-center">
+                  <Button
+                    variant="primary"
+                    onClick={() => setShowModal(true)}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Crear mi primer plan
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {/* Solo mostrar filtros y sección de planes si hay planes creados y terminó el loading */}
+        {!isInitialLoading && customPlans.length > 0 && (
           <>
             {/* Filtros y título simplificado */}
             <div className="flex items-center justify-between gap-4 mb-4">
-              <h2 className="text-xl font-semibold text-gray-50">Mis Planes</h2>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-50">Mis Planes</h2>
               <div className="flex gap-2">
                 <Button
                   variant={filter === 'all' ? 'primary' : 'secondary'}
@@ -336,17 +396,17 @@ export default function MembershipsPage() {
                 {filteredPlans.map((plan) => {
                   const memberCount = getMemberCount(plan.id);
                   return (
-                    <Card key={plan.id} className="flex flex-col h-full">
+                    <div key={plan.id} className="flex flex-col h-full bg-gray-50 dark:bg-dark-800/50 border border-gray-200 dark:border-dark-700 rounded-xl p-6 shadow-sm">
                   <div className="flex-1">
                     <div className="flex justify-between items-start mb-4">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <h3 className="text-xl font-semibold text-gray-50">{plan.name}</h3>
+                          <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-50">{plan.name}</h3>
                         </div>
                         <p className="text-2xl font-bold text-primary-400 mb-1">
                           ${formatPrice(plan.price)}
                         </p>
-                        <p className="text-sm text-gray-400">
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
                           {plan.durationDays} días • {memberCount} miembro(s)
                         </p>
                       </div>
@@ -356,27 +416,27 @@ export default function MembershipsPage() {
                     </div>
 
                     {plan.description && (
-                      <p className="text-sm text-gray-300 mb-4">{plan.description}</p>
+                      <p className="text-sm text-gray-700 dark:text-gray-300 mb-4">{plan.description}</p>
                     )}
 
                     {/* Servicios incluidos */}
                     <div className="space-y-2 mb-4">
-                      <h4 className="text-xs font-semibold text-gray-400 uppercase">Incluye:</h4>
+                      <h4 className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Incluye:</h4>
                       <div className="grid grid-cols-2 gap-2">
                         {plan.includes.freeWeights && (
-                          <div className="flex items-center gap-2 text-sm text-gray-300">
+                          <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                             <Check className="w-4 h-4 text-success-400" />
                             <span>Pesas libres</span>
                           </div>
                         )}
                         {plan.includes.machines && (
-                          <div className="flex items-center gap-2 text-sm text-gray-300">
+                          <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                             <Check className="w-4 h-4 text-success-400" />
                             <span>Máquinas</span>
                           </div>
                         )}
                         {plan.includes.groupClasses && (
-                          <div className="flex items-center gap-2 text-sm text-gray-300">
+                          <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                             <Check className="w-4 h-4 text-success-400" />
                             <span>
                               Clases grupales
@@ -385,7 +445,7 @@ export default function MembershipsPage() {
                           </div>
                         )}
                         {plan.includes.personalTrainer && (
-                          <div className="flex items-center gap-2 text-sm text-gray-300">
+                          <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                             <Check className="w-4 h-4 text-success-400" />
                             <span>
                               Entrenador personal
@@ -394,25 +454,25 @@ export default function MembershipsPage() {
                           </div>
                         )}
                         {plan.includes.cardio && (
-                          <div className="flex items-center gap-2 text-sm text-gray-300">
+                          <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                             <Check className="w-4 h-4 text-success-400" />
                             <span>Cardio</span>
                           </div>
                         )}
                         {plan.includes.functional && (
-                          <div className="flex items-center gap-2 text-sm text-gray-300">
+                          <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                             <Check className="w-4 h-4 text-success-400" />
                             <span>Funcional</span>
                           </div>
                         )}
                         {plan.includes.locker && (
-                          <div className="flex items-center gap-2 text-sm text-gray-300">
+                          <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                             <Check className="w-4 h-4 text-success-400" />
                             <span>Locker</span>
                           </div>
                         )}
                         {plan.includes.supplements && (
-                          <div className="flex items-center gap-2 text-sm text-gray-300">
+                          <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                             <Check className="w-4 h-4 text-success-400" />
                             <span>Suplementos</span>
                           </div>
@@ -424,7 +484,7 @@ export default function MembershipsPage() {
                               const customService = gymCustomServices.find(s => s.id === serviceId);
                               if (!customService) return null;
                               return (
-                                <div key={serviceId} className="flex items-center gap-2 text-sm text-gray-300">
+                                <div key={serviceId} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                                   <Check className="w-4 h-4 text-success-400" />
                                   <span>{customService.name}</span>
                                 </div>
@@ -437,7 +497,7 @@ export default function MembershipsPage() {
                   </div>
 
                   {/* Acciones - siempre al final */}
-                  <div className="flex gap-2 pt-4 mt-auto border-t border-dark-700/30">
+                  <div className="flex gap-2 pt-4 mt-auto border-t border-gray-200 dark:border-dark-700/30">
                     <Button
                       variant="secondary"
                       className="flex-1 text-xs"
@@ -474,7 +534,7 @@ export default function MembershipsPage() {
                       <Trash2 className="w-3 h-3" />
                     </Button>
                     </div>
-                  </Card>
+                  </div>
                   );
                 })}
               </div>
@@ -826,12 +886,12 @@ function PlanModal({
       onClose={onClose}
       title={plan ? 'Editar Plan de Membresía' : 'Crear Nuevo Plan de Membresía'}
     >
-      <form onSubmit={handleSubmit} className="space-y-6 max-h-[85vh] overflow-y-auto">
+      <form onSubmit={handleSubmit} className="space-y-6 max-h-[85vh] overflow-y-auto pr-1" style={{ scrollbarGutter: 'stable' }}>
         {/* Layout horizontal: dos columnas */}
         <div className="grid grid-cols-2 gap-6">
           {/* Columna izquierda: Información básica */}
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-gray-300 uppercase">Información Básica</h3>
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase">Información Básica</h3>
             
             <Input
               label="Nombre del plan"
@@ -843,11 +903,11 @@ function PlanModal({
 
             <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Precio (mensual) *
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 z-10">$</span>
                 <input
                   type="text"
                   value={formData.priceDisplay}
@@ -881,14 +941,14 @@ function PlanModal({
                     }
                   }}
                   placeholder="100.000"
-                  className="w-full pl-8 pr-4 py-2 bg-dark-800 border border-dark-600 rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className="w-full pl-8 pr-4 py-2.5 bg-gray-100 dark:bg-dark-800/50 border border-gray-300 dark:border-dark-700/50 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/20 transition-all text-sm rounded-lg"
                   required
                 />
               </div>
-              <p className="text-xs text-gray-500 mt-1">Ingresa el precio en pesos colombianos</p>
+              <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">Ingresa el precio en pesos colombianos</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Duración (días) *
               </label>
               <input
@@ -922,10 +982,10 @@ function PlanModal({
                   }
                 }}
                 placeholder="Ej: 30"
-                className="w-full px-4 py-2 bg-dark-800 border border-dark-600 rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="w-full px-4 py-2 bg-gray-100 dark:bg-dark-800 border border-gray-300 dark:border-dark-600 rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 required
               />
-              <p className="text-xs text-gray-500 mt-1">Duración mínima: 7 días</p>
+              <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">Duración mínima: 7 días</p>
             </div>
           </div>
 
@@ -943,121 +1003,133 @@ function PlanModal({
                   type="checkbox"
                   checked={formData.isActive}
                   onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                  className="w-4 h-4 rounded border-dark-600 bg-dark-800 accent-red-500 text-red-500 focus:ring-red-500 checked:bg-red-500 checked:border-red-500"
+                  className="w-4 h-4 rounded border-gray-300 dark:border-dark-600 bg-white dark:bg-dark-800 accent-red-500 text-red-500 focus:ring-red-500 checked:bg-red-500 checked:border-red-500"
                 />
-                <span className="text-sm text-gray-300">Plan activo</span>
+                <span className="text-sm text-gray-700 dark:text-gray-300">Plan activo</span>
               </label>
             </div>
           </div>
 
           {/* Columna derecha: Servicios incluidos */}
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-gray-300 uppercase">Servicios Incluidos</h3>
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase">Servicios Incluidos</h3>
             
             <div className="grid grid-cols-1 gap-3 max-h-[400px] overflow-y-auto pr-2">
-            <label className="flex items-center gap-2 cursor-pointer p-3 bg-dark-800/30 rounded-lg border border-dark-700/30 hover:border-red-500/50 transition-all">
+            <label className="flex items-center gap-2 cursor-pointer p-3 bg-gray-50 dark:bg-dark-800/30 rounded-lg border border-gray-200 dark:border-dark-700/30 hover:border-red-500/50 transition-all">
               <input
                 type="checkbox"
                 checked={formData.includes.freeWeights}
                 onChange={(e) => updateInclude('freeWeights', e.target.checked)}
-                className="w-4 h-4 rounded border-dark-600 bg-dark-800 accent-red-500 text-red-500 focus:ring-red-500 checked:bg-red-500 checked:border-red-500"
+                className="w-4 h-4 rounded border-gray-300 dark:border-dark-600 bg-white dark:bg-dark-800 accent-red-500 text-red-500 focus:ring-red-500 checked:bg-red-500 checked:border-red-500"
               />
-              <span className="text-sm text-gray-300">Pesas libres</span>
+              <span className="text-sm text-gray-700 dark:text-gray-300">Pesas libres</span>
             </label>
 
-            <label className="flex items-center gap-2 cursor-pointer p-3 bg-dark-800/30 rounded-lg border border-dark-700/30 hover:border-red-500/50 transition-all">
+            <label className="flex items-center gap-2 cursor-pointer p-3 bg-gray-50 dark:bg-dark-800/30 rounded-lg border border-gray-200 dark:border-dark-700/30 hover:border-red-500/50 transition-all">
               <input
                 type="checkbox"
                 checked={formData.includes.machines}
                 onChange={(e) => updateInclude('machines', e.target.checked)}
-                className="w-4 h-4 rounded border-dark-600 bg-dark-800 accent-red-500 text-red-500 focus:ring-red-500 checked:bg-red-500 checked:border-red-500"
+                className="w-4 h-4 rounded border-gray-300 dark:border-dark-600 bg-white dark:bg-dark-800 accent-red-500 text-red-500 focus:ring-red-500 checked:bg-red-500 checked:border-red-500"
               />
-              <span className="text-sm text-gray-300">Máquinas</span>
+              <span className="text-sm text-gray-700 dark:text-gray-300">Máquinas</span>
             </label>
 
-            <label className="flex items-center gap-2 cursor-pointer p-3 bg-dark-800/30 rounded-lg border border-dark-700/30 hover:border-red-500/50 transition-all">
+            <label className="flex items-center gap-2 cursor-pointer p-3 bg-gray-50 dark:bg-dark-800/30 rounded-lg border border-gray-200 dark:border-dark-700/30 hover:border-red-500/50 transition-all">
               <input
                 type="checkbox"
                 checked={formData.includes.groupClasses}
                 onChange={(e) => updateInclude('groupClasses', e.target.checked)}
-                className="w-4 h-4 rounded border-dark-600 bg-dark-800 accent-red-500 text-red-500 focus:ring-red-500 checked:bg-red-500 checked:border-red-500"
+                className="w-4 h-4 rounded border-gray-300 dark:border-dark-600 bg-white dark:bg-dark-800 accent-red-500 text-red-500 focus:ring-red-500 checked:bg-red-500 checked:border-red-500"
               />
-              <span className="text-sm text-gray-300">Clases grupales</span>
+              <span className="text-sm text-gray-700 dark:text-gray-300">Clases grupales</span>
             </label>
             {formData.includes.groupClasses && (
               <Input
                 label="Clases por mes"
                 type="number"
-                value={formData.includes.groupClassesCount || 0}
-                onChange={(e) => updateInclude('groupClassesCount', parseInt(e.target.value) || 0)}
+                min="1"
+                value={formData.includes.groupClassesCount || ''}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  // Remover ceros a la izquierda
+                  const numValue = value === '' ? 0 : parseInt(value.replace(/^0+/, '') || '0', 10);
+                  updateInclude('groupClassesCount', numValue || 0);
+                }}
                 className="col-span-2"
               />
             )}
 
-            <label className="flex items-center gap-2 cursor-pointer p-3 bg-dark-800/30 rounded-lg border border-dark-700/30 hover:border-red-500/50 transition-all">
+            <label className="flex items-center gap-2 cursor-pointer p-3 bg-gray-50 dark:bg-dark-800/30 rounded-lg border border-gray-200 dark:border-dark-700/30 hover:border-red-500/50 transition-all">
               <input
                 type="checkbox"
                 checked={formData.includes.personalTrainer}
                 onChange={(e) => updateInclude('personalTrainer', e.target.checked)}
-                className="w-4 h-4 rounded border-dark-600 bg-dark-800 accent-red-500 text-red-500 focus:ring-red-500 checked:bg-red-500 checked:border-red-500"
+                className="w-4 h-4 rounded border-gray-300 dark:border-dark-600 bg-white dark:bg-dark-800 accent-red-500 text-red-500 focus:ring-red-500 checked:bg-red-500 checked:border-red-500"
               />
-              <span className="text-sm text-gray-300">Entrenador personal</span>
+              <span className="text-sm text-gray-700 dark:text-gray-300">Entrenador personal</span>
             </label>
             {formData.includes.personalTrainer && (
               <Input
                 label="Sesiones incluidas"
                 type="number"
-                value={formData.includes.personalTrainerSessions || 0}
-                onChange={(e) => updateInclude('personalTrainerSessions', parseInt(e.target.value) || 0)}
+                min="1"
+                value={formData.includes.personalTrainerSessions || ''}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  // Remover ceros a la izquierda
+                  const numValue = value === '' ? 0 : parseInt(value.replace(/^0+/, '') || '0', 10);
+                  updateInclude('personalTrainerSessions', numValue || 0);
+                }}
                 className="col-span-2"
               />
             )}
 
-            <label className="flex items-center gap-2 cursor-pointer p-3 bg-dark-800/30 rounded-lg border border-dark-700/30 hover:border-red-500/50 transition-all">
+            <label className="flex items-center gap-2 cursor-pointer p-3 bg-gray-50 dark:bg-dark-800/30 rounded-lg border border-gray-200 dark:border-dark-700/30 hover:border-red-500/50 transition-all">
               <input
                 type="checkbox"
                 checked={formData.includes.cardio}
                 onChange={(e) => updateInclude('cardio', e.target.checked)}
-                className="w-4 h-4 rounded border-dark-600 bg-dark-800 accent-red-500 text-red-500 focus:ring-red-500 checked:bg-red-500 checked:border-red-500"
+                className="w-4 h-4 rounded border-gray-300 dark:border-dark-600 bg-white dark:bg-dark-800 accent-red-500 text-red-500 focus:ring-red-500 checked:bg-red-500 checked:border-red-500"
               />
-              <span className="text-sm text-gray-300">Área de cardio</span>
+              <span className="text-sm text-gray-700 dark:text-gray-300">Área de cardio</span>
             </label>
 
-            <label className="flex items-center gap-2 cursor-pointer p-3 bg-dark-800/30 rounded-lg border border-dark-700/30 hover:border-red-500/50 transition-all">
+            <label className="flex items-center gap-2 cursor-pointer p-3 bg-gray-50 dark:bg-dark-800/30 rounded-lg border border-gray-200 dark:border-dark-700/30 hover:border-red-500/50 transition-all">
               <input
                 type="checkbox"
                 checked={formData.includes.functional}
                 onChange={(e) => updateInclude('functional', e.target.checked)}
-                className="w-4 h-4 rounded border-dark-600 bg-dark-800 accent-red-500 text-red-500 focus:ring-red-500 checked:bg-red-500 checked:border-red-500"
+                className="w-4 h-4 rounded border-gray-300 dark:border-dark-600 bg-white dark:bg-dark-800 accent-red-500 text-red-500 focus:ring-red-500 checked:bg-red-500 checked:border-red-500"
               />
-              <span className="text-sm text-gray-300">Área funcional</span>
+              <span className="text-sm text-gray-700 dark:text-gray-300">Área funcional</span>
             </label>
 
-            <label className="flex items-center gap-2 cursor-pointer p-3 bg-dark-800/30 rounded-lg border border-dark-700/30 hover:border-red-500/50 transition-all">
+            <label className="flex items-center gap-2 cursor-pointer p-3 bg-gray-50 dark:bg-dark-800/30 rounded-lg border border-gray-200 dark:border-dark-700/30 hover:border-red-500/50 transition-all">
               <input
                 type="checkbox"
                 checked={formData.includes.locker}
                 onChange={(e) => updateInclude('locker', e.target.checked)}
-                className="w-4 h-4 rounded border-dark-600 bg-dark-800 accent-red-500 text-red-500 focus:ring-red-500 checked:bg-red-500 checked:border-red-500"
+                className="w-4 h-4 rounded border-gray-300 dark:border-dark-600 bg-white dark:bg-dark-800 accent-red-500 text-red-500 focus:ring-red-500 checked:bg-red-500 checked:border-red-500"
               />
-              <span className="text-sm text-gray-300">Locker/Vestuarios</span>
+              <span className="text-sm text-gray-700 dark:text-gray-300">Locker/Vestuarios</span>
             </label>
 
-            <label className="flex items-center gap-2 cursor-pointer p-3 bg-dark-800/30 rounded-lg border border-dark-700/30 hover:border-red-500/50 transition-all">
+            <label className="flex items-center gap-2 cursor-pointer p-3 bg-gray-50 dark:bg-dark-800/30 rounded-lg border border-gray-200 dark:border-dark-700/30 hover:border-red-500/50 transition-all">
               <input
                 type="checkbox"
                 checked={formData.includes.supplements}
                 onChange={(e) => updateInclude('supplements', e.target.checked)}
-                className="w-4 h-4 rounded border-dark-600 bg-dark-800 accent-red-500 text-red-500 focus:ring-red-500 checked:bg-red-500 checked:border-red-500"
+                className="w-4 h-4 rounded border-gray-300 dark:border-dark-600 bg-white dark:bg-dark-800 accent-red-500 text-red-500 focus:ring-red-500 checked:bg-red-500 checked:border-red-500"
               />
-              <span className="text-sm text-gray-300">Suplementos/Barra</span>
+              <span className="text-sm text-gray-700 dark:text-gray-300">Suplementos/Barra</span>
             </label>
           </div>
 
           {/* Servicios personalizados del gym */}
-          <div className="mt-4 pt-4 border-t border-dark-700/30">
+          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-dark-700/30">
             <div className="flex items-center gap-2 mb-3">
-              <h4 className="text-sm font-semibold text-gray-300">Servicios Personalizados del Gym</h4>
+              <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Servicios Personalizados del Gym</h4>
             </div>
             
             {/* Input para agregar servicio personalizado al gym */}
@@ -1073,7 +1145,7 @@ function PlanModal({
                   }
                 }}
                 placeholder="Ej: Piscina, Sauna, Spa..."
-                className="flex-1 px-4 py-2 bg-dark-800 border border-dark-600 rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="flex-1 px-4 py-2 bg-gray-100 dark:bg-dark-800 border border-gray-300 dark:border-dark-600 rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
               />
               <Button
                 type="button"
@@ -1093,15 +1165,15 @@ function PlanModal({
                   return (
                     <label
                       key={service.id}
-                      className="flex items-center gap-2 cursor-pointer p-3 bg-dark-800/30 rounded-lg border border-dark-700/30 hover:border-red-500/50 transition-all"
+                      className="flex items-center gap-2 cursor-pointer p-3 bg-gray-50 dark:bg-dark-800/30 rounded-lg border border-gray-200 dark:border-dark-700/30 hover:border-red-500/50 transition-all"
                     >
                       <input
                         type="checkbox"
                         checked={isIncluded}
                         onChange={(e) => handleToggleGymCustomService(service.id, e.target.checked)}
-                        className="w-4 h-4 rounded border-dark-600 bg-dark-800 accent-red-500 text-red-500 focus:ring-red-500 checked:bg-red-500 checked:border-red-500"
+                        className="w-4 h-4 rounded border-gray-300 dark:border-dark-600 bg-white dark:bg-dark-800 accent-red-500 text-red-500 focus:ring-red-500 checked:bg-red-500 checked:border-red-500"
                       />
-                      <span className="text-sm text-gray-300 flex-1">{service.name}</span>
+                      <span className="text-sm text-gray-700 dark:text-gray-300 flex-1">{service.name}</span>
                       <button
                         type="button"
                         onClick={(e) => {
@@ -1120,7 +1192,7 @@ function PlanModal({
             )}
             
             {gymCustomServices.length === 0 && (
-              <p className="text-xs text-gray-500 text-center py-2">
+              <p className="text-xs text-gray-500 dark:text-gray-500 text-center py-2">
                 No has creado servicios personalizados. Agrega uno arriba para comenzar.
               </p>
             )}
@@ -1129,7 +1201,7 @@ function PlanModal({
         </div>
 
         {/* Botones - fuera del grid */}
-        <div className="flex justify-end gap-3 pt-4 border-t border-dark-700/30 col-span-2">
+        <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-dark-700/30 col-span-2">
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancelar
           </Button>

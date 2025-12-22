@@ -62,22 +62,22 @@ export function ConfirmDialog({
 
       {/* Dialog */}
       <div className="relative z-10 w-full max-w-md mx-4">
-        <div className="bg-dark-900 border border-dark-700 rounded-lg shadow-xl overflow-hidden">
+        <div className="bg-white dark:bg-dark-900 border border-gray-200 dark:border-dark-700 rounded-lg shadow-xl overflow-hidden">
           {/* Header */}
           <div className={`px-6 py-4 border-b ${styles.border} ${styles.bg}`}>
             <div className="flex items-center gap-3">
               <AlertTriangle className={`w-5 h-5 ${styles.icon}`} />
-              <h3 className="text-lg font-semibold text-gray-50">{title}</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-50">{title}</h3>
             </div>
           </div>
 
           {/* Content */}
           <div className="px-6 py-4">
-            <p className="text-gray-300 leading-relaxed">{message}</p>
+            <p className="text-gray-700 dark:text-gray-300 leading-relaxed">{message}</p>
           </div>
 
           {/* Actions */}
-          <div className="px-6 py-4 bg-dark-800/50 border-t border-dark-700 flex justify-end gap-3">
+          <div className="px-6 py-4 bg-gray-50 dark:bg-dark-800/50 border-t border-gray-200 dark:border-dark-700 flex justify-end gap-3">
             <Button
               variant="secondary"
               onClick={onClose}
@@ -98,4 +98,7 @@ export function ConfirmDialog({
     </div>
   );
 }
+
+
+
 

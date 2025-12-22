@@ -63,23 +63,29 @@ export default function StorePage() {
   // Productos filtrados
   const filteredProducts = useMemo(() => {
     return products.filter(product => {
-      // Búsqueda
+      // Búsqueda por nombre o SKU
       const matchesSearch = searchQuery === '' || 
         product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        product.sku?.toLowerCase().includes(searchQuery.toLowerCase());
+        (product.sku && product.sku.toLowerCase().includes(searchQuery.toLowerCase()));
+
+      if (!matchesSearch) return false;
 
       // Categoría
       const matchesCategory = filterCategory === 'all' || product.category === filterCategory;
 
+      if (!matchesCategory) return false;
+
       // Stock
       let matchesStock = true;
       if (filterStock === 'low') {
-        matchesStock = product.stock <= product.lowStockAlert && product.stock > 0;
+        // Stock bajo: mayor a 0 pero menor o igual a la alerta
+        matchesStock = product.stock > 0 && product.stock <= product.lowStockAlert;
       } else if (filterStock === 'out') {
+        // Sin stock: igual a 0
         matchesStock = product.stock === 0;
       }
 
-      return matchesSearch && matchesCategory && matchesStock;
+      return matchesStock;
     });
   }, [products, searchQuery, filterCategory, filterStock]);
 
@@ -172,10 +178,8 @@ export default function StorePage() {
     try {
       if (editingProduct) {
         await updateProduct(editingProduct.id, productData);
-        alert('Producto actualizado exitosamente');
       } else {
         await addProduct(productData);
-        alert('Producto creado exitosamente');
       }
       handleCloseModal();
     } catch (error) {
@@ -383,7 +387,7 @@ export default function StorePage() {
                     <div className="flex items-center justify-between pt-3 border-t border-dark-600">
                       <div>
                         <p className="text-2xl font-bold text-primary-400">
-                          ${product.price.toLocaleString()}
+                          ${formatPrice(product.price)}
                         </p>
                       </div>
                       <div className="text-right">

@@ -9,9 +9,9 @@ interface MainLayoutProps {
 
 export function MainLayout({ children }: MainLayoutProps) {
   return (
-    <div className="flex min-h-screen bg-dark-900">
+    <div className="flex min-h-screen bg-white dark:bg-dark-900">
       <Sidebar />
-      <main className="flex-1 ml-64 bg-dark-900">
+      <main className="flex-1 ml-64 bg-white dark:bg-dark-900">
         <div className="p-6">
           {children}
         </div>

@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { format } from 'date-fns';
+import { formatPrice } from '@/utils/format';
 import { 
   Gym, 
   Client, 
@@ -21,7 +22,8 @@ import {
   Goal,
   Product,
   Invoice,
-  InvoiceItem
+  InvoiceItem,
+  AuditLog
 } from '@/types';
 
 interface AppContextType {
@@ -32,8 +34,8 @@ interface AppContextType {
   // Clients
   clients: Client[];
   addClient: (client: Omit<Client, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Client | null>;
-  updateClient: (id: string, client: Partial<Client>) => Promise<void>;
-  deleteClient: (id: string) => Promise<void>;
+  updateClient: (id: string, client: Partial<Client>, skipLog?: boolean) => Promise<{ changes: string[]; oldClient: Client; updatedClient: Client; } | undefined>;
+  deleteClient: (id: string) => Promise<boolean | undefined>;
   
   // Membership Types
   membershipTypes: MembershipType[];
@@ -54,12 +56,14 @@ interface AppContextType {
   // Memberships
   memberships: Membership[];
   addMembership: (membership: Omit<Membership, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
-  updateMembership: (id: string, membership: Partial<Membership>) => Promise<void>;
+  updateMembership: (id: string, membership: Partial<Membership>, skipLog?: boolean) => Promise<{ changes: string[]; oldMembership: Membership; updatedMembership: Membership; client: Client | undefined; oldMembershipType: MembershipType | undefined; newMembershipType: MembershipType | undefined; } | undefined>;
   
   // Payments
   payments: Payment[];
   addPayment: (payment: Omit<Payment, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
   updatePayment: (id: string, payment: Partial<Payment>) => Promise<void>;
+  getPaymentsByDate: (date: Date) => Promise<Payment[]>;
+  getPaymentsByYear: (year: number) => Promise<Payment[]>;
   
   // Trainers
   trainers: Trainer[];
@@ -118,6 +122,13 @@ interface AppContextType {
   
   // Invoice Items
   invoiceItems: InvoiceItem[];
+  
+  // Audit Logs
+  auditLogs: AuditLog[];
+  auditLogsTotal: number;
+  addAuditLog: (log: Omit<AuditLog, 'id' | 'createdAt' | 'gymId' | 'userId'>) => Promise<void>;
+  getAuditLogs: (filters?: { userId?: string; actionType?: string; entityType?: string; startDate?: Date; endDate?: Date; page?: number; pageSize?: number; searchQuery?: string }) => Promise<{ total: number; page: number; pageSize: number } | undefined>;
+  cleanupOldAuditLogs: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -145,6 +156,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [invoiceItems, setInvoiceItems] = useState<InvoiceItem[]>([]);
+  
+  // Sistema de logs/auditoría
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [auditLogsTotal, setAuditLogsTotal] = useState<number>(0);
 
   // Helper function to parse dates from localStorage
   const parseDates = (obj: any): any => {
@@ -860,6 +875,98 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ============================
   // LOAD PAYMENTS FROM SUPABASE
   // ============================
+  const loadPayments = async () => {
+    if (!gym?.id) {
+      setPayments([]);
+      return;
+    }
+
+    try {
+      const { data, error } = await (supabase.from('payments') as any)
+        .select('*')
+        .eq('gym_id', gym.id)
+        .order('payment_date', { ascending: false });
+
+      if (error) {
+        console.error('Error loading payments:', error);
+        setPayments([]);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        const loadedPayments: Payment[] = data.map((item: any) => {
+          // Convertir payment_date correctamente (viene como string 'YYYY-MM-DD' desde PostgreSQL DATE)
+          let paymentDate: Date;
+          if (item.payment_date) {
+            // PostgreSQL DATE viene como string 'YYYY-MM-DD' o 'YYYY-MM-DDTHH:mm:ss'
+            // Extraer solo la parte de la fecha
+            const dateStr = typeof item.payment_date === 'string' 
+              ? item.payment_date.split('T')[0] 
+              : item.payment_date;
+            
+            // Parsear la fecha directamente sin usar new Date() que puede cambiar por zona horaria
+            const [year, month, day] = dateStr.split('-').map(Number);
+            
+            // Crear fecha en UTC a mediodía para evitar problemas de zona horaria
+            // Esto asegura que la fecha no cambie al convertir a zona horaria local
+            paymentDate = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+            
+            // Debug
+            console.log('Cargando pago desde DB:', {
+              payment_date_from_db: item.payment_date,
+              dateStr: dateStr,
+              year, month, day,
+              paymentDate_created: format(paymentDate, 'yyyy-MM-dd'),
+              paymentDate_iso: paymentDate.toISOString()
+            });
+          } else {
+            paymentDate = new Date();
+          }
+          
+          const payment = {
+            id: item.id,
+            clientId: item.client_id,
+            membershipId: item.membership_id || undefined,
+            invoiceId: item.invoice_id || undefined,
+            cashClosingId: item.cash_closing_id || undefined,
+            amount: parseFloat(item.amount),
+            method: item.method,
+            paymentDate: paymentDate,
+            status: item.status || 'completed',
+            notes: item.notes || undefined,
+            isPartial: item.is_partial || false,
+            paymentMonth: item.payment_month || undefined,
+            splitPayment: item.split_payment ? {
+              cash: parseFloat(item.split_payment.cash),
+              transfer: parseFloat(item.split_payment.transfer)
+            } : undefined,
+            createdAt: new Date(item.created_at),
+            updatedAt: new Date(item.updated_at),
+          };
+          
+          // Debug: Log si tiene invoice_id
+          if (item.invoice_id) {
+            console.log('💳 Payment with invoice_id:', {
+              paymentId: payment.id,
+              invoiceId: payment.invoiceId,
+              invoice_id_from_db: item.invoice_id,
+              amount: payment.amount,
+              date: format(paymentDate, 'yyyy-MM-dd')
+            });
+          }
+          
+          return payment;
+        });
+        setPayments(loadedPayments);
+      } else {
+        setPayments([]);
+      }
+    } catch (error) {
+      console.error('Error loading payments:', error);
+      setPayments([]);
+    }
+  };
+
   useEffect(() => {
     // Esperar a que la autenticación esté inicializada y haya un gym
     if (!initialized || !gym?.id) {
@@ -869,80 +976,136 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const loadPayments = async () => {
-      try {
-        const { data, error } = await (supabase.from('payments') as any)
-          .select('*')
-          .eq('gym_id', gym.id)
-          .order('payment_date', { ascending: false });
-
-        if (error) {
-          console.error('Error loading payments:', error);
-          setPayments([]);
-          return;
-        }
-
-        if (data && data.length > 0) {
-          const loadedPayments: Payment[] = data.map((item: any) => {
-            // Convertir payment_date correctamente (viene como string 'YYYY-MM-DD' desde PostgreSQL DATE)
-            let paymentDate: Date;
-            if (item.payment_date) {
-              // PostgreSQL DATE viene como string 'YYYY-MM-DD' o 'YYYY-MM-DDTHH:mm:ss'
-              // Extraer solo la parte de la fecha
-              const dateStr = typeof item.payment_date === 'string' 
-                ? item.payment_date.split('T')[0] 
-                : item.payment_date;
-              
-              // Parsear la fecha directamente sin usar new Date() que puede cambiar por zona horaria
-              const [year, month, day] = dateStr.split('-').map(Number);
-              
-              // Crear fecha en UTC a mediodía para evitar problemas de zona horaria
-              // Esto asegura que la fecha no cambie al convertir a zona horaria local
-              paymentDate = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
-              
-              // Debug
-              console.log('Cargando pago desde DB:', {
-                payment_date_from_db: item.payment_date,
-                dateStr: dateStr,
-                year, month, day,
-                paymentDate_created: format(paymentDate, 'yyyy-MM-dd'),
-                paymentDate_iso: paymentDate.toISOString()
-              });
-            } else {
-              paymentDate = new Date();
-            }
-            
-            return {
-              id: item.id,
-              clientId: item.client_id,
-              membershipId: item.membership_id || undefined,
-              amount: parseFloat(item.amount),
-              method: item.method,
-              paymentDate: paymentDate,
-              status: item.status || 'completed',
-              notes: item.notes || undefined,
-              isPartial: item.is_partial || false,
-              paymentMonth: item.payment_month || undefined,
-              splitPayment: item.split_payment ? {
-                cash: parseFloat(item.split_payment.cash),
-                transfer: parseFloat(item.split_payment.transfer)
-              } : undefined,
-              createdAt: new Date(item.created_at),
-              updatedAt: new Date(item.updated_at),
-            };
-          });
-          setPayments(loadedPayments);
-        } else {
-          setPayments([]);
-        }
-      } catch (error) {
-        console.error('Error loading payments:', error);
-        setPayments([]);
-      }
-    };
-
     loadPayments();
   }, [initialized, gym?.id, supabase]);
+
+  // Función para obtener pagos filtrados por fecha específica (backend)
+  const getPaymentsByDate = async (date: Date): Promise<Payment[]> => {
+    if (!gym?.id) {
+      return [];
+    }
+
+    try {
+      const dateStr = format(date, 'yyyy-MM-dd');
+      
+      const { data, error } = await (supabase.from('payments') as any)
+        .select('*')
+        .eq('gym_id', gym.id)
+        .eq('payment_date', dateStr)
+        .eq('status', 'completed')
+        .order('payment_date', { ascending: false });
+
+      if (error) {
+        console.error('Error loading payments by date:', error);
+        return [];
+      }
+
+      if (data && data.length > 0) {
+        return data.map((item: any) => {
+          let paymentDate: Date;
+          if (item.payment_date) {
+            const dateStr = typeof item.payment_date === 'string' 
+              ? item.payment_date.split('T')[0] 
+              : item.payment_date;
+            const [year, month, day] = dateStr.split('-').map(Number);
+            paymentDate = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+          } else {
+            paymentDate = new Date();
+          }
+          
+          return {
+            id: item.id,
+            clientId: item.client_id,
+            membershipId: item.membership_id || undefined,
+            invoiceId: item.invoice_id || undefined,
+            cashClosingId: item.cash_closing_id || undefined,
+            amount: parseFloat(item.amount),
+            method: item.method,
+            paymentDate: paymentDate,
+            status: item.status || 'completed',
+            notes: item.notes || undefined,
+            isPartial: item.is_partial || false,
+            paymentMonth: item.payment_month || undefined,
+            splitPayment: item.split_payment ? {
+              cash: parseFloat(item.split_payment.cash),
+              transfer: parseFloat(item.split_payment.transfer)
+            } : undefined,
+            createdAt: new Date(item.created_at),
+            updatedAt: new Date(item.updated_at),
+          };
+        });
+      }
+      return [];
+    } catch (error) {
+      console.error('Error loading payments by date:', error);
+      return [];
+    }
+  };
+
+  // Función para obtener pagos filtrados por año (backend)
+  const getPaymentsByYear = async (year: number): Promise<Payment[]> => {
+    if (!gym?.id) {
+      return [];
+    }
+
+    try {
+      const startDate = `${year}-01-01`;
+      const endDate = `${year}-12-31`;
+      
+      const { data, error } = await (supabase.from('payments') as any)
+        .select('*')
+        .eq('gym_id', gym.id)
+        .gte('payment_date', startDate)
+        .lte('payment_date', endDate)
+        .eq('status', 'completed')
+        .order('payment_date', { ascending: false });
+
+      if (error) {
+        console.error('Error loading payments by year:', error);
+        return [];
+      }
+
+      if (data && data.length > 0) {
+        return data.map((item: any) => {
+          let paymentDate: Date;
+          if (item.payment_date) {
+            const dateStr = typeof item.payment_date === 'string' 
+              ? item.payment_date.split('T')[0] 
+              : item.payment_date;
+            const [year, month, day] = dateStr.split('-').map(Number);
+            paymentDate = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+          } else {
+            paymentDate = new Date();
+          }
+          
+          return {
+            id: item.id,
+            clientId: item.client_id,
+            membershipId: item.membership_id || undefined,
+            invoiceId: item.invoice_id || undefined,
+            cashClosingId: item.cash_closing_id || undefined,
+            amount: parseFloat(item.amount),
+            method: item.method,
+            paymentDate: paymentDate,
+            status: item.status || 'completed',
+            notes: item.notes || undefined,
+            isPartial: item.is_partial || false,
+            paymentMonth: item.payment_month || undefined,
+            splitPayment: item.split_payment ? {
+              cash: parseFloat(item.split_payment.cash),
+              transfer: parseFloat(item.split_payment.transfer)
+            } : undefined,
+            createdAt: new Date(item.created_at),
+            updatedAt: new Date(item.updated_at),
+          };
+        });
+      }
+      return [];
+    } catch (error) {
+      console.error('Error loading payments by year:', error);
+      return [];
+    }
+  };
   
   // ============================
   // LOAD TRAINERS FROM SUPABASE
@@ -1863,6 +2026,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           updatedAt: new Date(data.updated_at),
         };
         setClients([...clients, newClient]);
+        
+        // NO registrar log aquí - se registrará en addMembership cuando se asigne la membresía
+        // Si no se asigna membresía, se registrará un log simple más adelante
+        
         return newClient;
       }
       return null;
@@ -1872,7 +2039,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const updateClient = async (id: string, clientData: Partial<Client>) => {
+  const updateClient = async (id: string, clientData: Partial<Client>, skipLog: boolean = false) => {
     try {
       const updateData: any = {};
       if (clientData.name !== undefined) updateData.name = clientData.name;
@@ -1893,7 +2060,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       if (error) {
         console.error('Error updating client:', error);
-        return;
+        return undefined;
       }
 
       if (data) {
@@ -1913,7 +2080,90 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           createdAt: new Date(data.created_at),
           updatedAt: new Date(data.updated_at),
         };
+        const oldClient = clients.find(c => c.id === id);
         setClients(clients.map(c => c.id === id ? updatedClient : c));
+        
+        // Registrar log con detalles de los cambios
+        if (oldClient) {
+          const changes: string[] = [];
+          
+          // Detectar qué campos cambiaron
+          if (clientData.name !== undefined && oldClient.name !== clientData.name) {
+            changes.push(`Nombre: "${oldClient.name}" → "${clientData.name}"`);
+          }
+          if (clientData.email !== undefined && oldClient.email !== clientData.email) {
+            changes.push(`Email: "${oldClient.email || 'sin email'}" → "${clientData.email || 'sin email'}"`);
+          }
+          if (clientData.phone !== undefined && oldClient.phone !== clientData.phone) {
+            changes.push(`Teléfono: "${oldClient.phone || 'sin teléfono'}" → "${clientData.phone || 'sin teléfono'}"`);
+          }
+          if (clientData.documentId !== undefined && oldClient.documentId !== clientData.documentId) {
+            changes.push(`Cédula: "${oldClient.documentId || 'sin cédula'}" → "${clientData.documentId || 'sin cédula'}"`);
+          }
+          if (clientData.birthDate !== undefined) {
+            const oldBirthDate = oldClient.birthDate ? oldClient.birthDate.toISOString().split('T')[0] : 'sin fecha';
+            const newBirthDate = clientData.birthDate ? clientData.birthDate.toISOString().split('T')[0] : 'sin fecha';
+            if (oldBirthDate !== newBirthDate) {
+              changes.push(`Fecha de nacimiento: ${oldBirthDate} → ${newBirthDate}`);
+            }
+          }
+          if (clientData.status !== undefined && oldClient.status !== clientData.status) {
+            changes.push(`Estado: ${oldClient.status} → ${clientData.status}`);
+          }
+          if (clientData.initialWeight !== undefined && oldClient.initialWeight !== clientData.initialWeight) {
+            changes.push(`Peso inicial: ${oldClient.initialWeight || 'N/A'} kg → ${clientData.initialWeight || 'N/A'} kg`);
+          }
+          if (clientData.notes !== undefined && oldClient.notes !== clientData.notes) {
+            const oldNotes = oldClient.notes || 'sin notas';
+            const newNotes = clientData.notes || 'sin notas';
+            if (oldNotes !== newNotes) {
+              changes.push(`Notas: ${oldNotes.substring(0, 50)}${oldNotes.length > 50 ? '...' : ''} → ${newNotes.substring(0, 50)}${newNotes.length > 50 ? '...' : ''}`);
+            }
+          }
+          if (clientData.address !== undefined && oldClient.address !== clientData.address) {
+            changes.push(`Dirección: "${oldClient.address || 'sin dirección'}" → "${clientData.address || 'sin dirección'}"`);
+          }
+          
+          // Solo registrar log si no se solicita omitirlo y hay cambios
+          if (!skipLog && changes.length > 0) {
+            const changesDescription = ` - Cambios: ${changes.join(', ')}`;
+            
+            await addAuditLog({
+              actionType: 'update',
+              entityType: 'client',
+              entityId: id,
+              description: `Miembro actualizado: ${updatedClient.name}${changesDescription}`,
+              metadata: {
+                changes: clientData,
+                oldValues: {
+                  name: oldClient.name,
+                  email: oldClient.email,
+                  phone: oldClient.phone,
+                  documentId: oldClient.documentId,
+                  birthDate: oldClient.birthDate,
+                  status: oldClient.status,
+                  initialWeight: oldClient.initialWeight,
+                  notes: oldClient.notes,
+                  address: oldClient.address,
+                },
+                newValues: {
+                  name: updatedClient.name,
+                  email: updatedClient.email,
+                  phone: updatedClient.phone,
+                  documentId: updatedClient.documentId,
+                  birthDate: updatedClient.birthDate,
+                  status: updatedClient.status,
+                  initialWeight: updatedClient.initialWeight,
+                  notes: updatedClient.notes,
+                  address: updatedClient.address,
+                },
+              },
+            });
+          }
+          
+          // Retornar información de cambios para uso externo
+          return { changes, oldClient, updatedClient };
+        }
       }
     } catch (error) {
       console.error('Error updating client:', error);
@@ -1922,18 +2172,52 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const deleteClient = async (id: string) => {
     try {
+      const clientToDelete = clients.find(c => c.id === id);
+      
+      if (!clientToDelete) {
+        console.error('Client not found:', id);
+        alert('Error: No se encontró el miembro a eliminar.');
+        return;
+      }
+
+      console.log('🗑️ Intentando eliminar cliente:', {
+        id,
+        name: clientToDelete.name,
+      });
+
+      // Primero registrar el log ANTES de eliminar (por si falla la eliminación, al menos tenemos el intento)
+      await addAuditLog({
+        actionType: 'delete',
+        entityType: 'client',
+        entityId: id,
+        description: `Miembro eliminado: ${clientToDelete.name}${clientToDelete.email ? ` (${clientToDelete.email})` : ''}`,
+        metadata: {
+          name: clientToDelete.name,
+          email: clientToDelete.email,
+          phone: clientToDelete.phone,
+        },
+      });
+
+      console.log('✅ Log registrado, procediendo a eliminar de la base de datos...');
+
       const { error } = await (supabase.from('clients') as any)
         .delete()
         .eq('id', id);
 
       if (error) {
-        console.error('Error deleting client:', error);
-        return;
+        console.error('❌ Error eliminando cliente de la base de datos:', error);
+        alert(`Error al eliminar el miembro: ${error.message || 'Error desconocido'}`);
+        throw error;
       }
 
+      console.log('✅ Cliente eliminado exitosamente de la base de datos');
       setClients(clients.filter(c => c.id !== id));
-    } catch (error) {
-      console.error('Error deleting client:', error);
+      
+      return true;
+    } catch (error: any) {
+      console.error('❌ Error completo al eliminar cliente:', error);
+      alert(`Error al eliminar el miembro: ${error?.message || 'Error desconocido'}`);
+      throw error;
     }
   };
 
@@ -1987,6 +2271,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           updatedAt: new Date(data.updated_at),
         };
         setMembershipTypes([...membershipTypes, newType]);
+        
+        // Registrar log
+        await addAuditLog({
+          actionType: 'create',
+          entityType: 'membership_type',
+          entityId: newType.id,
+          description: `Plan creado: ${newType.name} - Precio: $${formatPrice(newType.price)}, Duración: ${newType.durationDays} días`,
+          metadata: {
+            name: newType.name,
+            price: newType.price,
+            durationDays: newType.durationDays,
+            description: newType.description,
+            isActive: newType.isActive,
+            isFeatured: newType.isFeatured,
+          },
+        });
       }
     } catch (error) {
       console.error('Error adding membership type:', error);
@@ -2018,9 +2318,138 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Actualizar estado local
+      const oldType = membershipTypes.find(t => t.id === id);
       setMembershipTypes(membershipTypes.map(t => 
         t.id === id ? { ...t, ...typeData, updatedAt: new Date() } : t
       ));
+      
+      // Registrar log con detalles de los cambios
+      if (oldType) {
+        const updatedType = { ...oldType, ...typeData };
+        const changes: string[] = [];
+        
+        // Detectar qué campos cambiaron
+        if (typeData.name !== undefined && oldType.name !== typeData.name) {
+          changes.push(`Nombre: "${oldType.name}" → "${typeData.name}"`);
+        }
+        if (typeData.price !== undefined && oldType.price !== typeData.price) {
+          changes.push(`Precio: $${formatPrice(oldType.price)} → $${formatPrice(typeData.price)}`);
+        }
+        if (typeData.durationDays !== undefined && oldType.durationDays !== typeData.durationDays) {
+          changes.push(`Duración: ${oldType.durationDays} días → ${typeData.durationDays} días`);
+        }
+        // Solo registrar cambio de descripción si realmente cambió (manejar undefined, null, y strings vacíos)
+        if (typeData.description !== undefined) {
+          const oldDesc = oldType.description || '';
+          const newDesc = typeData.description || '';
+          if (oldDesc.trim() !== newDesc.trim()) {
+            changes.push(`Descripción: "${oldDesc || 'sin descripción'}" → "${newDesc || 'sin descripción'}"`);
+          }
+        }
+        // Detectar cambios en includes (checks/características)
+        if (typeData.includes !== undefined) {
+          const oldIncludes = oldType.includes || {};
+          const newIncludes = typeData.includes || {};
+          
+          // Comparar objetos de includes
+          const oldIncludesStr = JSON.stringify(oldIncludes);
+          const newIncludesStr = JSON.stringify(newIncludes);
+          
+          if (oldIncludesStr !== newIncludesStr) {
+            const changesList: string[] = [];
+            
+            // Detectar cambios en servicios booleanos
+            const booleanServices: Record<string, string> = {
+              freeWeights: 'Pesas libres',
+              machines: 'Máquinas',
+              groupClasses: 'Clases grupales',
+              personalTrainer: 'Entrenador personal',
+              cardio: 'Cardio',
+              functional: 'Funcional',
+              locker: 'Casillero',
+              supplements: 'Suplementos',
+            };
+            
+            Object.keys(booleanServices).forEach(key => {
+              const serviceKey = key as keyof typeof booleanServices;
+              const oldValue = (oldIncludes as any)[serviceKey];
+              const newValue = (newIncludes as any)[serviceKey];
+              if (oldValue !== newValue) {
+                if (newValue) {
+                  changesList.push(`✓ ${booleanServices[serviceKey]}`);
+                } else {
+                  changesList.push(`✗ ${booleanServices[serviceKey]}`);
+                }
+              }
+            });
+            
+            // Detectar cambios en contadores
+            if (oldIncludes.groupClassesCount !== newIncludes.groupClassesCount) {
+              changesList.push(`Clases/mes: ${oldIncludes.groupClassesCount || 0} → ${newIncludes.groupClassesCount || 0}`);
+            }
+            if (oldIncludes.personalTrainerSessions !== newIncludes.personalTrainerSessions) {
+              changesList.push(`Sesiones entrenador: ${oldIncludes.personalTrainerSessions || 0} → ${newIncludes.personalTrainerSessions || 0}`);
+            }
+            
+            // Detectar cambios en servicios personalizados
+            const oldCustomServices = Array.isArray(oldIncludes.customServices) ? oldIncludes.customServices : [];
+            const newCustomServices = Array.isArray(newIncludes.customServices) ? newIncludes.customServices : [];
+            if (JSON.stringify(oldCustomServices.sort()) !== JSON.stringify(newCustomServices.sort())) {
+              const added = newCustomServices.filter((id: string) => !oldCustomServices.includes(id));
+              const removed = oldCustomServices.filter((id: string) => !newCustomServices.includes(id));
+              if (added.length > 0) {
+                changesList.push(`Servicios agregados: ${added.length}`);
+              }
+              if (removed.length > 0) {
+                changesList.push(`Servicios eliminados: ${removed.length}`);
+              }
+            }
+            
+            if (changesList.length > 0) {
+              changes.push(`Características: ${changesList.join(', ')}`);
+            }
+          }
+        }
+        // Detectar cambios en restrictions
+        if (typeData.restrictions !== undefined) {
+          const oldRestrictions = oldType.restrictions || {};
+          const newRestrictions = typeData.restrictions || {};
+          if (JSON.stringify(oldRestrictions) !== JSON.stringify(newRestrictions)) {
+            changes.push(`Restricciones actualizadas`);
+          }
+        }
+        if (typeData.isActive !== undefined && oldType.isActive !== typeData.isActive) {
+          changes.push(`Estado: ${oldType.isActive ? 'Activo' : 'Inactivo'} → ${typeData.isActive ? 'Activo' : 'Inactivo'}`);
+        }
+        
+        const changesDescription = changes.length > 0 
+          ? ` - Cambios: ${changes.join(', ')}`
+          : ' - Sin cambios detectados';
+        
+        await addAuditLog({
+          actionType: 'update',
+          entityType: 'membership_type',
+          entityId: id,
+          description: `Plan actualizado: ${updatedType.name}${changesDescription}`,
+          metadata: {
+            changes: typeData,
+            oldValues: {
+              name: oldType.name,
+              price: oldType.price,
+              durationDays: oldType.durationDays,
+              description: oldType.description,
+              isActive: oldType.isActive,
+            },
+            newValues: {
+              name: updatedType.name,
+              price: updatedType.price,
+              durationDays: updatedType.durationDays,
+              description: updatedType.description,
+              isActive: updatedType.isActive,
+            },
+          },
+        });
+      }
     } catch (error) {
       console.error('Error updating membership type:', error);
     }
@@ -2039,7 +2468,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Actualizar estado local
+      const typeToDelete = membershipTypes.find(t => t.id === id);
       setMembershipTypes(membershipTypes.filter(t => t.id !== id));
+      
+      // Registrar log
+      if (typeToDelete) {
+        await addAuditLog({
+          actionType: 'delete',
+          entityType: 'membership_type',
+          entityId: id,
+          description: `Plan eliminado: ${typeToDelete.name} - Precio: $${formatPrice(typeToDelete.price)}`,
+          metadata: {
+            name: typeToDelete.name,
+            price: typeToDelete.price,
+            durationDays: typeToDelete.durationDays,
+          },
+        });
+      }
     } catch (error) {
       console.error('Error deleting membership type:', error);
     }
@@ -2049,6 +2494,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!gym?.id) {
       console.error('No gym available to create membership');
       return;
+    }
+
+    // Validar que el cliente no tenga ya una membresía activa del mismo tipo
+    const existingActiveMembership = memberships.find(
+      m => m.clientId === membershipData.clientId &&
+           m.membershipTypeId === membershipData.membershipTypeId &&
+           m.status === 'active'
+    );
+
+    if (existingActiveMembership) {
+      const membershipType = membershipTypes.find(mt => mt.id === membershipData.membershipTypeId);
+      const errorMessage = `Este cliente ya tiene una membresía activa de tipo "${membershipType?.name || 'este plan'}". ` +
+        `No se pueden tener múltiples membresías del mismo tipo. ` +
+        `Por favor, actualiza o cancela la membresía existente antes de crear una nueva.`;
+      alert(errorMessage);
+      throw new Error(errorMessage);
     }
 
     try {
@@ -2066,7 +2527,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       if (error) {
         console.error('Error creating membership:', error);
-        return;
+        alert('Error al crear la membresía. Por favor intenta de nuevo.');
+        throw error;
       }
 
       if (data) {
@@ -2081,13 +2543,98 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           updatedAt: new Date(data.updated_at),
         };
         setMemberships([...memberships, newMembership]);
+        
+        // Registrar log
+        // Consultar directamente la base de datos para obtener el cliente y su fecha de creación
+        const { data: clientData, error: clientError } = await (supabase
+          .from('clients') as any)
+          .select('id, name, email, phone, status, created_at')
+          .eq('id', membershipData.clientId)
+          .single();
+        
+        const membershipType = membershipTypes.find(mt => mt.id === membershipData.membershipTypeId);
+        
+        if (clientError) {
+          console.error('Error fetching client for log:', clientError);
+        }
+        
+        // Verificar si el cliente fue creado recientemente (en los últimos 10 segundos)
+        // Si es así, crear un log combinado: "Cliente nuevo creado e inscrito en X membresía"
+        const clientCreatedAt = clientData?.created_at ? new Date(clientData.created_at) : null;
+        const timeSinceClientCreated = clientCreatedAt ? (new Date().getTime() - clientCreatedAt.getTime()) : null;
+        const clientCreatedRecently = clientCreatedAt && timeSinceClientCreated !== null && timeSinceClientCreated < 10000; // 10 segundos
+        
+        console.log('📝 Registrando log de membresía:', {
+          clientId: membershipData.clientId,
+          clientName: clientData?.name,
+          membershipTypeName: membershipType?.name,
+          clientCreatedAt: clientCreatedAt,
+          timeSinceClientCreated: timeSinceClientCreated,
+          clientCreatedRecently: clientCreatedRecently,
+        });
+        
+        if (clientCreatedRecently && clientData) {
+          console.log('✅ Cliente creado recientemente, creando log combinado');
+          // Log combinado: cliente nuevo creado e inscrito en membresía
+          // Verificar si hay un pago asociado a esta membresía (puede que se haya pagado inmediatamente)
+          const recentPayment = payments.find(p => 
+            p.membershipId === newMembership.id && 
+            p.status === 'completed' &&
+            (new Date().getTime() - p.createdAt.getTime()) < 10000 // 10 segundos
+          );
+          
+          const paymentInfo = recentPayment 
+            ? ` - Pagó: $${formatPrice(recentPayment.amount)} (${recentPayment.splitPayment ? 'Mixto' : recentPayment.method === 'cash' ? 'Efectivo' : recentPayment.method === 'transfer' ? 'Transferencia' : recentPayment.method})`
+            : ' - Pendiente de pago';
+          
+          await addAuditLog({
+            actionType: 'create',
+            entityType: 'client',
+            entityId: clientData.id,
+            description: `Cliente nuevo creado: ${clientData.name}${clientData.email ? ` (${clientData.email})` : ''} e inscrito en ${membershipType?.name || 'Plan'}${paymentInfo}`,
+            metadata: {
+              name: clientData.name,
+              email: clientData.email,
+              phone: clientData.phone,
+              status: clientData.status,
+              membershipTypeId: membershipData.membershipTypeId,
+              membershipTypeName: membershipType?.name,
+              membershipId: newMembership.id,
+              startDate: membershipData.startDate,
+              endDate: membershipData.endDate,
+              hasPayment: !!recentPayment,
+              paymentAmount: recentPayment?.amount,
+              paymentMethod: recentPayment?.method,
+            },
+          });
+        } else {
+          console.log('✅ Cliente existente, creando log de membresía asignada');
+          // Log normal de membresía (cliente ya existía)
+          await addAuditLog({
+            actionType: 'create',
+            entityType: 'membership',
+            entityId: newMembership.id,
+            description: `Membresía asignada: ${clientData?.name || 'Cliente'} - ${membershipType?.name || 'Plan'}`,
+            metadata: {
+              clientId: membershipData.clientId,
+              clientName: clientData?.name,
+              membershipTypeId: membershipData.membershipTypeId,
+              membershipTypeName: membershipType?.name,
+              startDate: membershipData.startDate,
+              endDate: membershipData.endDate,
+            },
+          });
+        }
+        
+        return newMembership;
       }
     } catch (error) {
       console.error('Error adding membership:', error);
+      throw error;
     }
   };
 
-  const updateMembership = async (id: string, membershipData: Partial<Membership>) => {
+  const updateMembership = async (id: string, membershipData: Partial<Membership>, skipLog: boolean = false) => {
     try {
       const updateData: any = {};
       if (membershipData.membershipTypeId !== undefined) updateData.membership_type_id = membershipData.membershipTypeId;
@@ -2103,7 +2650,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       if (error) {
         console.error('Error updating membership:', error);
-        return;
+        return undefined;
       }
 
       if (data) {
@@ -2117,24 +2664,98 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           createdAt: new Date(data.created_at),
           updatedAt: new Date(data.updated_at),
         };
+        const oldMembership = memberships.find(m => m.id === id);
         setMemberships(memberships.map(m => m.id === id ? updatedMembership : m));
+        
+        // Registrar log con detalles de los cambios en la membresía
+        if (oldMembership) {
+          const client = clients.find(c => c.id === updatedMembership.clientId);
+          const oldMembershipType = membershipTypes.find(mt => mt.id === oldMembership.membershipTypeId);
+          const newMembershipType = membershipTypes.find(mt => mt.id === updatedMembership.membershipTypeId);
+          
+          const changes: string[] = [];
+          
+          // Detectar cambios en el plan
+          if (membershipData.membershipTypeId !== undefined && oldMembership.membershipTypeId !== updatedMembership.membershipTypeId) {
+            changes.push(`Plan: "${oldMembershipType?.name || 'N/A'}" → "${newMembershipType?.name || 'N/A'}"`);
+          }
+          
+          // Detectar cambios en fechas
+          if (membershipData.startDate !== undefined) {
+            const oldStartDate = oldMembership.startDate.toISOString().split('T')[0];
+            const newStartDate = updatedMembership.startDate.toISOString().split('T')[0];
+            if (oldStartDate !== newStartDate) {
+              changes.push(`Fecha de inicio: ${oldStartDate} → ${newStartDate}`);
+            }
+          }
+          
+          if (membershipData.endDate !== undefined) {
+            const oldEndDate = oldMembership.endDate.toISOString().split('T')[0];
+            const newEndDate = updatedMembership.endDate.toISOString().split('T')[0];
+            if (oldEndDate !== newEndDate) {
+              changes.push(`Fecha de vencimiento: ${oldEndDate} → ${newEndDate}`);
+            }
+          }
+          
+          // Detectar cambios en estado
+          if (membershipData.status !== undefined && oldMembership.status !== updatedMembership.status) {
+            const statusLabels: Record<string, string> = {
+              'active': 'Activa',
+              'expired': 'Vencida',
+              'upcoming_expiry': 'Por vencer',
+            };
+            changes.push(`Estado: ${statusLabels[oldMembership.status] || oldMembership.status} → ${statusLabels[updatedMembership.status] || updatedMembership.status}`);
+          }
+          
+          // Solo registrar log si no se solicita omitirlo y hay cambios reales
+          if (!skipLog && changes.length > 0) {
+            const changesDescription = ` - Cambios: ${changes.join(', ')}`;
+            
+            await addAuditLog({
+              actionType: 'update',
+              entityType: 'membership',
+              entityId: id,
+              description: `Membresía actualizada: ${client?.name || 'Cliente'} - ${newMembershipType?.name || 'Plan'}${changesDescription}`,
+              metadata: {
+                clientId: updatedMembership.clientId,
+                clientName: client?.name,
+                oldMembershipTypeId: oldMembership.membershipTypeId,
+                oldMembershipTypeName: oldMembershipType?.name,
+                newMembershipTypeId: updatedMembership.membershipTypeId,
+                newMembershipTypeName: newMembershipType?.name,
+                oldStartDate: oldMembership.startDate,
+                oldEndDate: oldMembership.endDate,
+                newStartDate: updatedMembership.startDate,
+                newEndDate: updatedMembership.endDate,
+                oldStatus: oldMembership.status,
+                newStatus: updatedMembership.status,
+              },
+            });
+          }
+          
+          // Retornar información de cambios para uso externo
+          return { changes, oldMembership, updatedMembership, client, oldMembershipType, newMembershipType };
+        }
+        return undefined;
       }
+      return undefined;
     } catch (error) {
       console.error('Error updating membership:', error);
     }
   };
 
   const addPayment = async (paymentData: Omit<Payment, 'id' | 'createdAt' | 'updatedAt'>) => {
-    if (!gym?.id) {
-      console.error('No gym available to create payment');
+    if (!gym?.id || !userProfile?.id) {
+      console.error('No gym or user available to create payment');
       return;
     }
 
     try {
       const insertData: any = {
         gym_id: gym.id,
-        client_id: paymentData.clientId,
+        client_id: paymentData.clientId && paymentData.clientId.trim() !== '' ? paymentData.clientId : null,
         membership_id: paymentData.membershipId || null,
+        invoice_id: paymentData.invoiceId || null,
         amount: paymentData.amount,
         method: paymentData.method,
         // Guardar solo la fecha (YYYY-MM-DD) directamente del string
@@ -2145,7 +2766,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         is_partial: paymentData.isPartial || false,
         payment_month: paymentData.paymentMonth || null,
         split_payment: paymentData.splitPayment || null,
+        cash_closing_id: null, // Ya no se usa, pero mantenemos el campo por compatibilidad
       };
+      
+      // Debug: Log del invoiceId que se está guardando
+      if (paymentData.invoiceId) {
+        console.log('💾 Guardando pago con invoiceId:', {
+          invoiceId: paymentData.invoiceId,
+          amount: paymentData.amount,
+          method: paymentData.method,
+          date: format(paymentData.paymentDate, 'yyyy-MM-dd')
+        });
+      }
 
       const { data, error } = await (supabase.from('payments') as any)
         .insert(insertData)
@@ -2173,6 +2805,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           id: data.id,
           clientId: data.client_id,
           membershipId: data.membership_id || undefined,
+          invoiceId: data.invoice_id || undefined,
+          cashClosingId: data.cash_closing_id || undefined,
           amount: parseFloat(data.amount),
           method: data.method,
           paymentDate: paymentDate,
@@ -2187,14 +2821,81 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           createdAt: new Date(data.created_at),
           updatedAt: new Date(data.updated_at),
         };
-        setPayments([...payments, newPayment]);
+        // Actualizar el estado con el nuevo pago
+        setPayments(prev => [...prev, newPayment]);
+        
+        // Registrar log de auditoría
+        const client = clients.find(c => c.id === paymentData.clientId);
+        const membership = paymentData.membershipId ? memberships.find(m => m.id === paymentData.membershipId) : null;
+        const invoice = paymentData.invoiceId ? invoices.find(i => i.id === paymentData.invoiceId) : null;
+        
+        // Verificar si la membresía fue creada recientemente (en los últimos 5 segundos)
+        // Si es así, actualizar el log existente en lugar de crear uno nuevo
+        const membershipCreatedRecently = membership && 
+          (new Date().getTime() - membership.createdAt.getTime()) < 5000; // 5 segundos
+        
+        let description = '';
+        if (invoice) {
+          // Es una venta de productos
+          const invoiceItemsList = invoiceItems.filter(item => item.invoiceId === paymentData.invoiceId);
+          const productsList = invoiceItemsList.map(item => item.description).join(', ');
+          description = `Venta registrada: ${productsList} por $${formatPrice(paymentData.amount)}`;
+          if (paymentData.splitPayment) {
+            description += ` (Efectivo: $${formatPrice(paymentData.splitPayment.cash)}, Transferencia: $${formatPrice(paymentData.splitPayment.transfer)})`;
+          } else {
+            description += ` (${paymentData.method === 'cash' ? 'Efectivo' : paymentData.method === 'transfer' ? 'Transferencia' : paymentData.method})`;
+          }
+        } else if (membership && client && membershipCreatedRecently) {
+          // Es un pago de membresía que se acaba de crear (actualizar el log existente)
+          const membershipType = membershipTypes.find(mt => mt.id === membership.membershipTypeId);
+          const paymentMethodText = paymentData.splitPayment 
+            ? `Mixto (Efectivo: $${formatPrice(paymentData.splitPayment.cash)}, Transferencia: $${formatPrice(paymentData.splitPayment.transfer)})`
+            : paymentData.method === 'cash' ? 'Efectivo' : paymentData.method === 'transfer' ? 'Transferencia' : paymentData.method;
+          
+          description = `Cliente nuevo creado: ${client.name} e inscrito en ${membershipType?.name || 'Plan'} - Pagó: $${formatPrice(paymentData.amount)} (${paymentMethodText})`;
+        } else if (membership && client) {
+          // Es un pago de membresía (membresía ya existía)
+          const membershipType = membershipTypes.find(mt => mt.id === membership.membershipTypeId);
+          description = `Pago registrado: ${client.name} - ${membershipType?.name || 'Membresía'} por $${formatPrice(paymentData.amount)}`;
+          if (paymentData.splitPayment) {
+            description += ` (Efectivo: $${formatPrice(paymentData.splitPayment.cash)}, Transferencia: $${formatPrice(paymentData.splitPayment.transfer)})`;
+          } else {
+            description += ` (${paymentData.method === 'cash' ? 'Efectivo' : paymentData.method === 'transfer' ? 'Transferencia' : paymentData.method})`;
+          }
+        } else {
+          description = `Pago registrado por $${formatPrice(paymentData.amount)}`;
+        }
+        
+        await addAuditLog({
+          actionType: membershipCreatedRecently ? 'create' : 'payment',
+          entityType: membershipCreatedRecently ? 'client' : 'payment',
+          entityId: membershipCreatedRecently ? (client?.id || newPayment.id) : newPayment.id,
+          description,
+          metadata: {
+            amount: paymentData.amount,
+            method: paymentData.method,
+            clientId: paymentData.clientId,
+            membershipId: paymentData.membershipId,
+            invoiceId: paymentData.invoiceId,
+            splitPayment: paymentData.splitPayment,
+          },
+        });
+        
+        // Recargar todos los pagos para asegurar sincronización
+        await loadPayments();
         
         // Debug
+        const todayForComparison = new Date();
+        const todayStr = format(todayForComparison, 'yyyy-MM-dd');
+        const paymentDateStr = format(newPayment.paymentDate, 'yyyy-MM-dd');
+        
         console.log('Pago agregado:', {
           id: newPayment.id,
-          paymentDate: format(newPayment.paymentDate, 'yyyy-MM-dd'),
+          paymentDate: paymentDateStr,
           amount: newPayment.amount,
-          today: format(new Date(), 'yyyy-MM-dd')
+          today: todayStr,
+          invoiceId: newPayment.invoiceId,
+          matchesToday: paymentDateStr === todayStr
         });
       }
     } catch (error) {
@@ -2208,6 +2909,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const updateData: any = {};
       if (paymentData.clientId !== undefined) updateData.client_id = paymentData.clientId;
       if (paymentData.membershipId !== undefined) updateData.membership_id = paymentData.membershipId || null;
+      if (paymentData.invoiceId !== undefined) updateData.invoice_id = paymentData.invoiceId || null;
+      if (paymentData.cashClosingId !== undefined) updateData.cash_closing_id = paymentData.cashClosingId || null;
       if (paymentData.amount !== undefined) updateData.amount = paymentData.amount;
       if (paymentData.method !== undefined) updateData.method = paymentData.method;
       if (paymentData.paymentDate !== undefined) updateData.payment_date = paymentData.paymentDate.toISOString().split('T')[0];
@@ -2233,6 +2936,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           id: data.id,
           clientId: data.client_id,
           membershipId: data.membership_id || undefined,
+          invoiceId: data.invoice_id || undefined,
+          cashClosingId: data.cash_closing_id || undefined,
           amount: parseFloat(data.amount),
           method: data.method,
           paymentDate: new Date(data.payment_date),
@@ -2251,6 +2956,476 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (error) {
       console.error('Error updating payment:', error);
+    }
+  };
+
+  // ============================
+  // SISTEMA DE LOGS/AUDITORÍA
+  // ============================
+  
+  // Función para registrar un log automáticamente
+  const addAuditLog = async (log: Omit<AuditLog, 'id' | 'createdAt' | 'gymId' | 'userId'>): Promise<void> => {
+    if (!gym?.id || !userProfile?.id) {
+      // No registrar logs si no hay gym o usuario (puede pasar durante inicialización)
+      console.warn('⚠️ No se puede registrar log: falta gym o userProfile', { gymId: gym?.id, userId: userProfile?.id });
+      return;
+    }
+
+    try {
+      const logData = {
+        gym_id: gym.id,
+        user_id: userProfile.id,
+        action_type: log.actionType,
+        entity_type: log.entityType,
+        entity_id: log.entityId || null,
+        description: log.description,
+        metadata: log.metadata || {},
+      };
+
+      console.log('📝 Intentando registrar log:', logData);
+
+      const { data, error } = await (supabase.from('audit_logs') as any)
+        .insert(logData)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('❌ Error adding audit log:', error);
+        console.error('Error details:', {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+        });
+        // No mostrar alerta al usuario, solo log en consola
+      } else {
+        console.log('✅ Log registrado exitosamente:', data);
+      }
+    } catch (error) {
+      console.error('❌ Error adding audit log (catch):', error);
+    }
+  };
+
+  // Función para obtener logs con filtros y paginación
+  const getAuditLogs = async (filters?: { 
+    userId?: string; 
+    actionType?: string; 
+    entityType?: string; 
+    startDate?: Date; 
+    endDate?: Date;
+    page?: number;
+    pageSize?: number;
+    searchQuery?: string;
+  }): Promise<{ total: number; page: number; pageSize: number } | undefined> => {
+    if (!gym?.id) {
+      return;
+    }
+
+    try {
+      const page = filters?.page || 1;
+      const pageSize = filters?.pageSize || 50;
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+
+      // Primero obtener el total de registros
+      let countQuery = (supabase.from('audit_logs') as any)
+        .select('*', { count: 'exact', head: true })
+        .eq('gym_id', gym.id);
+
+      if (filters?.userId) {
+        countQuery = countQuery.eq('user_id', filters.userId);
+      }
+      if (filters?.actionType) {
+        countQuery = countQuery.eq('action_type', filters.actionType);
+      }
+      if (filters?.entityType) {
+        countQuery = countQuery.eq('entity_type', filters.entityType);
+      }
+      if (filters?.startDate) {
+        countQuery = countQuery.gte('created_at', filters.startDate.toISOString());
+      }
+      if (filters?.endDate) {
+        countQuery = countQuery.lte('created_at', filters.endDate.toISOString());
+      }
+      if (filters?.searchQuery) {
+        // Búsqueda en descripción (ilike para búsqueda case-insensitive)
+        countQuery = countQuery.ilike('description', `%${filters.searchQuery}%`);
+      }
+
+      const { count, error: countError } = await countQuery;
+
+      if (countError) {
+        console.error('Error counting audit logs:', countError);
+        return;
+      }
+
+      // Luego obtener los registros paginados
+      let query = (supabase.from('audit_logs') as any)
+        .select(`
+          *,
+          user:gym_accounts!audit_logs_user_id_fkey(id, name, email)
+        `)
+        .eq('gym_id', gym.id)
+        .order('created_at', { ascending: false })
+        .range(from, to);
+
+      if (filters?.userId) {
+        query = query.eq('user_id', filters.userId);
+      }
+      if (filters?.actionType) {
+        query = query.eq('action_type', filters.actionType);
+      }
+      if (filters?.entityType) {
+        query = query.eq('entity_type', filters.entityType);
+      }
+      if (filters?.startDate) {
+        query = query.gte('created_at', filters.startDate.toISOString());
+      }
+      if (filters?.endDate) {
+        query = query.lte('created_at', filters.endDate.toISOString());
+      }
+      if (filters?.searchQuery) {
+        // Búsqueda en descripción
+        query = query.ilike('description', `%${filters.searchQuery}%`);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('Error loading audit logs:', error);
+        return;
+      }
+
+      if (data) {
+        const logs: AuditLog[] = data.map((item: any) => ({
+          id: item.id,
+          gymId: item.gym_id,
+          userId: item.user_id,
+          user: item.user ? {
+            id: item.user.id,
+            name: item.user.name,
+            email: item.user.email,
+          } : undefined,
+          actionType: item.action_type,
+          entityType: item.entity_type,
+          entityId: item.entity_id || undefined,
+          description: item.description,
+          metadata: item.metadata || {},
+          createdAt: new Date(item.created_at),
+        }));
+        
+        setAuditLogs(logs);
+        setAuditLogsTotal(count || 0);
+        
+        return {
+          total: count || 0,
+          page,
+          pageSize,
+        };
+      }
+    } catch (error) {
+      console.error('Error loading audit logs:', error);
+    }
+  };
+
+  // Función para limpiar logs antiguos (mayores a 1 mes)
+  const cleanupOldAuditLogs = async (): Promise<void> => {
+    if (!gym?.id) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase.rpc('cleanup_old_audit_logs');
+
+      if (error) {
+        console.error('Error cleaning up old audit logs:', error);
+      }
+    } catch (error) {
+      console.error('Error cleaning up old audit logs:', error);
+    }
+  };
+
+  // =====================================================
+  // FUNCIONES DE CIERRES DE CAJA (DEPRECATED - Se eliminará)
+  // =====================================================
+  
+  const getOpenCashClosing = async (): Promise<any | null> => {
+    if (!gym?.id || !userProfile?.id) {
+      return null;
+    }
+
+    try {
+      const { data, error } = await (supabase.from('cash_closings') as any)
+        .select(`
+          *,
+          user:gym_accounts!cash_closings_user_id_fkey(id, name, email)
+        `)
+        .eq('gym_id', gym.id)
+        .eq('user_id', userProfile.id)
+        .eq('status', 'open')
+        .order('opening_time', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+        console.error('Error getting open cash closing:', error);
+        return null;
+      }
+
+      if (!data) return null;
+
+      const item = data as any;
+      return {
+        id: item.id,
+        gymId: item.gym_id,
+        userId: item.user_id,
+        user: item.user ? {
+          id: item.user.id,
+          name: item.user.name,
+          email: item.user.email,
+        } : undefined,
+        openingTime: new Date(item.opening_time),
+        closingTime: item.closing_time ? new Date(item.closing_time) : undefined,
+        openingCash: parseFloat(item.opening_cash),
+        closingCash: item.closing_cash ? parseFloat(item.closing_cash) : undefined,
+        totalCashReceived: parseFloat(item.total_cash_received || 0),
+        totalTransferReceived: parseFloat(item.total_transfer_received || 0),
+        totalReceived: parseFloat(item.total_received || 0),
+        notes: item.notes || undefined,
+        status: item.status,
+        createdAt: new Date(item.created_at),
+        updatedAt: new Date(item.updated_at),
+      };
+    } catch (error) {
+      console.error('Error getting open cash closing:', error);
+      return null;
+    }
+  };
+
+  const openCashClosing = async (openingCash: number, notes?: string): Promise<any | null> => {
+    if (!gym?.id || !userProfile?.id) {
+      console.error('No gym or user available to open cash closing');
+      return null;
+    }
+
+    try {
+      // Verificar si ya hay un cierre abierto
+      const existing = await getOpenCashClosing();
+      if (existing) {
+        return existing; // Ya hay uno abierto, retornarlo
+      }
+
+      const { data, error } = await (supabase.from('cash_closings') as any)
+        .insert({
+          gym_id: gym.id,
+          user_id: userProfile.id,
+          opening_cash: openingCash,
+          notes: notes || null,
+          status: 'open',
+        })
+        .select(`
+          *,
+          user:gym_accounts!cash_closings_user_id_fkey(id, name, email)
+        `)
+        .single();
+
+      if (error) {
+        console.error('Error opening cash closing:', error);
+        alert('Error al abrir la caja. Por favor intenta de nuevo.');
+        return null;
+      }
+
+      if (data) {
+        const item = data as any;
+        const newClosing: any = {
+          id: item.id,
+          gymId: item.gym_id,
+          userId: item.user_id,
+          user: item.user ? {
+            id: item.user.id,
+            name: item.user.name,
+            email: item.user.email,
+          } : undefined,
+          openingTime: new Date(item.opening_time),
+          closingTime: item.closing_time ? new Date(item.closing_time) : undefined,
+          openingCash: parseFloat(item.opening_cash),
+          closingCash: item.closing_cash ? parseFloat(item.closing_cash) : undefined,
+          totalCashReceived: parseFloat(item.total_cash_received || 0),
+          totalTransferReceived: parseFloat(item.total_transfer_received || 0),
+          totalReceived: parseFloat(item.total_received || 0),
+          notes: item.notes || undefined,
+          status: item.status,
+          createdAt: new Date(item.created_at),
+          updatedAt: new Date(item.updated_at),
+        };
+        
+        // setCashClosings(prev => [...prev, newClosing]); // DEPRECATED
+        return newClosing;
+      }
+    } catch (error) {
+      console.error('Error opening cash closing:', error);
+      alert('Error al abrir la caja. Por favor intenta de nuevo.');
+      return null;
+    }
+    return null;
+  };
+
+  const closeCashClosing = async (closingCash: number, notes?: string): Promise<void> => {
+    if (!gym?.id || !userProfile?.id) {
+      console.error('No gym or user available to close cash closing');
+      return;
+    }
+
+    try {
+      const openClosing = await getOpenCashClosing();
+      if (!openClosing) {
+        alert('No hay una caja abierta para cerrar.');
+        return;
+      }
+
+      // Calcular totales de pagos asociados a este cierre
+      const { data: paymentsData, error: paymentsError } = await supabase
+        .from('payments')
+        .select('amount, method, split_payment, status')
+        .eq('cash_closing_id', openClosing.id)
+        .eq('status', 'completed');
+
+      if (paymentsError) {
+        console.error('Error calculating totals:', paymentsError);
+      }
+
+      let totalCash = 0;
+      let totalTransfer = 0;
+      let totalReceived = 0;
+
+      if (paymentsData) {
+        paymentsData.forEach((p: any) => {
+          const amount = parseFloat(p.amount);
+          totalReceived += amount;
+
+          if (p.split_payment) {
+            totalCash += parseFloat(p.split_payment.cash || 0);
+            totalTransfer += parseFloat(p.split_payment.transfer || 0);
+          } else {
+            if (p.method === 'cash') {
+              totalCash += amount;
+            } else if (p.method === 'transfer') {
+              totalTransfer += amount;
+            }
+          }
+        });
+      }
+
+      const { data, error } = await (supabase.from('cash_closings') as any)
+        .update({
+          closing_time: new Date().toISOString(),
+          closing_cash: closingCash,
+          total_cash_received: totalCash,
+          total_transfer_received: totalTransfer,
+          total_received: totalReceived,
+          notes: notes || null,
+          status: 'closed',
+        })
+        .eq('id', openClosing.id)
+        .select(`
+          *,
+          user:gym_accounts!cash_closings_user_id_fkey(id, name, email)
+        `)
+        .single();
+
+      if (error) {
+        console.error('Error closing cash closing:', error);
+        alert('Error al cerrar la caja. Por favor intenta de nuevo.');
+        return;
+      }
+
+      if (data) {
+        const item = data as any;
+        const updatedClosing: any = {
+          id: item.id,
+          gymId: item.gym_id,
+          userId: item.user_id,
+          user: item.user ? {
+            id: item.user.id,
+            name: item.user.name,
+            email: item.user.email,
+          } : undefined,
+          openingTime: new Date(item.opening_time),
+          closingTime: item.closing_time ? new Date(item.closing_time) : undefined,
+          openingCash: parseFloat(item.opening_cash),
+          closingCash: item.closing_cash ? parseFloat(item.closing_cash) : undefined,
+          totalCashReceived: parseFloat(item.total_cash_received || 0),
+          totalTransferReceived: parseFloat(item.total_transfer_received || 0),
+          totalReceived: parseFloat(item.total_received || 0),
+          notes: item.notes || undefined,
+          status: item.status,
+          createdAt: new Date(item.created_at),
+          updatedAt: new Date(item.updated_at),
+        };
+        
+        // setCashClosings(prev => prev.map(c => c.id === openClosing.id ? updatedClosing : c)); // DEPRECATED
+      }
+    } catch (error) {
+      console.error('Error closing cash closing:', error);
+      alert('Error al cerrar la caja. Por favor intenta de nuevo.');
+    }
+  };
+
+  const getCashClosings = async (startDate?: Date, endDate?: Date): Promise<void> => {
+    if (!gym?.id) {
+      return;
+    }
+
+    try {
+      let query = (supabase.from('cash_closings') as any)
+        .select(`
+          *,
+          user:gym_accounts!cash_closings_user_id_fkey(id, name, email)
+        `)
+        .eq('gym_id', gym.id)
+        .order('opening_time', { ascending: false });
+
+      if (startDate) {
+        query = query.gte('opening_time', startDate.toISOString());
+      }
+      if (endDate) {
+        query = query.lte('opening_time', endDate.toISOString());
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('Error loading cash closings:', error);
+        return;
+      }
+
+      if (data) {
+        const closings: any[] = data.map((item: any) => ({
+          id: item.id,
+          gymId: item.gym_id,
+          userId: item.user_id,
+          user: item.user ? {
+            id: item.user.id,
+            name: item.user.name,
+            email: item.user.email,
+          } : undefined,
+          openingTime: new Date(item.opening_time),
+          closingTime: item.closing_time ? new Date(item.closing_time) : undefined,
+          openingCash: parseFloat(item.opening_cash),
+          closingCash: item.closing_cash ? parseFloat(item.closing_cash) : undefined,
+          totalCashReceived: parseFloat(item.total_cash_received || 0),
+          totalTransferReceived: parseFloat(item.total_transfer_received || 0),
+          totalReceived: parseFloat(item.total_received || 0),
+          notes: item.notes || undefined,
+          status: item.status,
+          createdAt: new Date(item.created_at),
+          updatedAt: new Date(item.updated_at),
+        }));
+        
+        // setCashClosings(closings); // DEPRECATED
+      }
+    } catch (error) {
+      console.error('Error loading cash closings:', error);
     }
   };
 
@@ -2288,6 +3463,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           updatedAt: new Date(data.updated_at),
         };
         setTrainers([...trainers, newTrainer]);
+        
+        // Registrar log
+        await addAuditLog({
+          actionType: 'create',
+          entityType: 'trainer',
+          entityId: newTrainer.id,
+          description: `Entrenador creado: ${newTrainer.name}${newTrainer.email ? ` (${newTrainer.email})` : ''}`,
+          metadata: {
+            name: newTrainer.name,
+            email: newTrainer.email,
+            phone: newTrainer.phone,
+          },
+        });
       }
     } catch (error) {
       console.error('Error adding trainer:', error);
@@ -2322,7 +3510,47 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           createdAt: new Date(data.created_at),
           updatedAt: new Date(data.updated_at),
         };
+        const oldTrainer = trainers.find(t => t.id === id);
         setTrainers(trainers.map(t => t.id === id ? updatedTrainer : t));
+        
+        // Registrar log con detalles de los cambios
+        if (oldTrainer) {
+          const changes: string[] = [];
+          
+          if (trainerData.name !== undefined && oldTrainer.name !== trainerData.name) {
+            changes.push(`Nombre: "${oldTrainer.name}" → "${trainerData.name}"`);
+          }
+          if (trainerData.email !== undefined && oldTrainer.email !== trainerData.email) {
+            changes.push(`Email: "${oldTrainer.email || 'sin email'}" → "${trainerData.email || 'sin email'}"`);
+          }
+          if (trainerData.phone !== undefined && oldTrainer.phone !== trainerData.phone) {
+            changes.push(`Teléfono: "${oldTrainer.phone || 'sin teléfono'}" → "${trainerData.phone || 'sin teléfono'}"`);
+          }
+          
+          const changesDescription = changes.length > 0 
+            ? ` - Cambios: ${changes.join(', ')}`
+            : ' - Sin cambios detectados';
+          
+          await addAuditLog({
+            actionType: 'update',
+            entityType: 'trainer',
+            entityId: id,
+            description: `Entrenador actualizado: ${updatedTrainer.name}${changesDescription}`,
+            metadata: {
+              changes: trainerData,
+              oldValues: {
+                name: oldTrainer.name,
+                email: oldTrainer.email,
+                phone: oldTrainer.phone,
+              },
+              newValues: {
+                name: updatedTrainer.name,
+                email: updatedTrainer.email,
+                phone: updatedTrainer.phone,
+              },
+            },
+          });
+        }
       }
     } catch (error) {
       console.error('Error updating trainer:', error);
@@ -2331,6 +3559,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const deleteTrainer = async (id: string) => {
     try {
+      const trainerToDelete = trainers.find(t => t.id === id);
+      
       const { error } = await (supabase.from('trainers') as any)
         .delete()
         .eq('id', id);
@@ -2341,6 +3571,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
 
       setTrainers(trainers.filter(t => t.id !== id));
+      
+      // Registrar log
+      if (trainerToDelete) {
+        await addAuditLog({
+          actionType: 'delete',
+          entityType: 'trainer',
+          entityId: id,
+          description: `Entrenador eliminado: ${trainerToDelete.name}${trainerToDelete.email ? ` (${trainerToDelete.email})` : ''}`,
+          metadata: {
+            name: trainerToDelete.name,
+            email: trainerToDelete.email,
+            phone: trainerToDelete.phone,
+          },
+        });
+      }
     } catch (error) {
       console.error('Error deleting trainer:', error);
     }
@@ -2396,6 +3641,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           updatedAt: new Date(data.updated_at),
         };
         setClasses([...classes, newClass]);
+        
+        // Registrar log
+        const trainer = trainers.find(t => t.id === classData.trainerId);
+        const daysOfWeekNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+        const daysText = classData.daysOfWeek?.map(d => daysOfWeekNames[d]).join(', ') || 'Sin días';
+        
+        await addAuditLog({
+          actionType: 'create',
+          entityType: 'class',
+          entityId: newClass.id,
+          description: `Clase creada: ${newClass.name}${trainer ? ` - Entrenador: ${trainer.name}` : ''} - ${daysText} a las ${newClass.startTime} - Capacidad: ${newClass.capacity}`,
+          metadata: {
+            name: newClass.name,
+            trainerId: newClass.trainerId,
+            trainerName: trainer?.name,
+            daysOfWeek: newClass.daysOfWeek,
+            startTime: newClass.startTime,
+            duration: newClass.duration,
+            capacity: newClass.capacity,
+            requiresMembership: newClass.requiresMembership,
+          },
+        });
       }
     } catch (error) {
       console.error('Error adding class:', error);
@@ -2470,6 +3737,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
+      const classToDelete = classes.find(c => c.id === id);
+      
       const { error } = await (supabase.from('classes') as any)
         .delete()
         .eq('id', id)
@@ -2481,6 +3750,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
 
       setClasses(classes.filter(c => c.id !== id));
+      
+      // Registrar log
+      if (classToDelete) {
+        const trainer = trainers.find(t => t.id === classToDelete.trainerId);
+        await addAuditLog({
+          actionType: 'delete',
+          entityType: 'class',
+          entityId: id,
+          description: `Clase eliminada: ${classToDelete.name}${trainer ? ` - Entrenador: ${trainer.name}` : ''}`,
+          metadata: {
+            name: classToDelete.name,
+            trainerId: classToDelete.trainerId,
+            trainerName: trainer?.name,
+            startTime: classToDelete.startTime,
+            capacity: classToDelete.capacity,
+          },
+        });
+      }
     } catch (error) {
       console.error('Error deleting class:', error);
     }
@@ -2569,6 +3856,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           enrolledAt: new Date(data.enrolled_at),
         };
         setEnrollments([...enrollments, enrollment]);
+        
+        // Registrar log
+        await addAuditLog({
+          actionType: 'create',
+          entityType: 'enrollment',
+          entityId: enrollment.id,
+          description: `Persona asignada a clase: ${client.name} inscrito en ${classItem.name}`,
+          metadata: {
+            clientId: client.id,
+            clientName: client.name,
+            classId: classItem.id,
+            className: classItem.name,
+          },
+        });
       }
     } catch (error: any) {
       console.error('Error enrolling client:', error);
@@ -3523,6 +4824,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           updatedAt: new Date(data.updated_at),
         };
         setProducts([...products, newProduct]);
+        
+        // Registrar log
+        await addAuditLog({
+          actionType: 'create',
+          entityType: 'product',
+          entityId: newProduct.id,
+          description: `Producto creado: ${newProduct.name} - Precio: $${formatPrice(newProduct.price)}, Stock: ${newProduct.stock}`,
+          metadata: {
+            name: newProduct.name,
+            price: newProduct.price,
+            stock: newProduct.stock,
+            category: newProduct.category,
+            sku: newProduct.sku,
+          },
+        });
       }
     } catch (error) {
       console.error('Error adding product:', error);
@@ -3569,7 +4885,100 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           createdAt: new Date(data.created_at),
           updatedAt: new Date(data.updated_at),
         };
+        const oldProduct = products.find(p => p.id === id);
         setProducts(products.map(p => p.id === id ? updatedProduct : p));
+        
+        // Registrar log con detalles de los cambios
+        if (oldProduct) {
+          const changes: string[] = [];
+          const onlyStockChanged = Object.keys(productData).length === 1 && productData.stock !== undefined;
+          const onlyPriceChanged = Object.keys(productData).length === 1 && productData.price !== undefined;
+          const stockChanged = productData.stock !== undefined && oldProduct.stock !== productData.stock;
+          const priceChanged = productData.price !== undefined && oldProduct.price !== productData.price;
+          
+          // Detectar qué campos cambiaron
+          if (productData.name !== undefined && oldProduct.name !== productData.name) {
+            changes.push(`Nombre: "${oldProduct.name}" → "${productData.name}"`);
+          }
+          if (priceChanged) {
+            changes.push(`Precio: $${formatPrice(oldProduct.price)} → $${formatPrice(productData.price)}`);
+          }
+          if (stockChanged) {
+            const stockDiff = productData.stock - oldProduct.stock;
+            const stockChange = stockDiff > 0 ? `+${stockDiff}` : `${stockDiff}`;
+            changes.push(`Stock: ${oldProduct.stock} → ${productData.stock} (${stockChange})`);
+          }
+          if (productData.category !== undefined && oldProduct.category !== productData.category) {
+            changes.push(`Categoría: "${oldProduct.category || 'sin categoría'}" → "${productData.category || 'sin categoría'}"`);
+          }
+          if (productData.isActive !== undefined && oldProduct.isActive !== productData.isActive) {
+            changes.push(`Estado: ${oldProduct.isActive ? 'Activo' : 'Inactivo'} → ${productData.isActive ? 'Activo' : 'Inactivo'}`);
+          }
+          
+          // Crear logs específicos según el tipo de cambio
+          if (onlyStockChanged && stockChanged) {
+            // Log específico para movimiento de stock
+            const stockDiff = productData.stock - oldProduct.stock;
+            const movementType = stockDiff > 0 ? 'aumento' : 'disminución';
+            const stockChange = stockDiff > 0 ? `+${stockDiff}` : `${stockDiff}`;
+            
+            await addAuditLog({
+              actionType: 'update',
+              entityType: 'product',
+              entityId: id,
+              description: `Movimiento de stock: ${updatedProduct.name} - Stock ${movementType} de ${oldProduct.stock} a ${productData.stock} (${stockChange})`,
+              metadata: {
+                changeType: 'stock_movement',
+                oldStock: oldProduct.stock,
+                newStock: productData.stock,
+                stockDifference: stockDiff,
+                movementType: movementType,
+                productName: updatedProduct.name,
+              },
+            });
+          } else if (onlyPriceChanged && priceChanged) {
+            // Log específico para cambio de precio
+            await addAuditLog({
+              actionType: 'update',
+              entityType: 'product',
+              entityId: id,
+              description: `Precio actualizado: ${updatedProduct.name} - Precio: $${formatPrice(oldProduct.price)} → $${formatPrice(productData.price)}`,
+              metadata: {
+                changeType: 'price_update',
+                oldPrice: oldProduct.price,
+                newPrice: productData.price,
+                productName: updatedProduct.name,
+              },
+            });
+          } else if (changes.length > 0) {
+            // Log general para otros cambios
+            const changesDescription = ` - Cambios: ${changes.join(', ')}`;
+            
+            await addAuditLog({
+              actionType: 'update',
+              entityType: 'product',
+              entityId: id,
+              description: `Producto actualizado: ${updatedProduct.name}${changesDescription}`,
+              metadata: {
+                changes: productData,
+                oldValues: {
+                  name: oldProduct.name,
+                  price: oldProduct.price,
+                  stock: oldProduct.stock,
+                  category: oldProduct.category,
+                  isActive: oldProduct.isActive,
+                },
+                newValues: {
+                  name: updatedProduct.name,
+                  price: updatedProduct.price,
+                  stock: updatedProduct.stock,
+                  category: updatedProduct.category,
+                  isActive: updatedProduct.isActive,
+                },
+              },
+            });
+          }
+        }
       }
     } catch (error) {
       console.error('Error updating product:', error);
@@ -3589,7 +4998,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      const productToDelete = products.find(p => p.id === id);
       setProducts(products.filter(p => p.id !== id));
+      
+      // Registrar log
+      if (productToDelete) {
+        await addAuditLog({
+          actionType: 'delete',
+          entityType: 'product',
+          entityId: id,
+          description: `Producto eliminado: ${productToDelete.name}`,
+          metadata: {
+            name: productToDelete.name,
+            price: productToDelete.price,
+            stock: productToDelete.stock,
+          },
+        });
+      }
     } catch (error) {
       console.error('Error deleting product:', error);
     }
@@ -3691,6 +5116,40 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setInvoices([...invoices, newInvoice]);
       setInvoiceItems([...invoiceItems, ...newInvoiceItems]);
 
+      // Recargar invoice items desde la BD para asegurar sincronización
+      // Esto se ejecutará automáticamente por el useEffect que depende de invoices
+      // pero forzamos una recarga inmediata para que esté disponible de inmediato
+      setTimeout(async () => {
+        const invoiceIds = [...invoices.map(inv => inv.id), newInvoice.id];
+        if (invoiceIds.length > 0 && supabase) {
+          try {
+            const { data: itemsData } = await (supabase.from('invoice_items') as any)
+              .select('*')
+              .in('invoice_id', invoiceIds)
+              .order('created_at', { ascending: false });
+            
+            if (itemsData && itemsData.length > 0) {
+              const loadedItems: InvoiceItem[] = itemsData.map((item: any) => ({
+                id: item.id,
+                invoiceId: item.invoice_id,
+                itemType: item.item_type,
+                itemId: item.item_id || undefined,
+                description: item.description,
+                quantity: item.quantity,
+                unitPrice: parseFloat(item.unit_price),
+                subtotal: parseFloat(item.subtotal),
+                discount: parseFloat(item.discount),
+                total: parseFloat(item.total),
+                createdAt: new Date(item.created_at),
+              }));
+              setInvoiceItems(loadedItems);
+            }
+          } catch (error) {
+            console.error('Error reloading invoice items:', error);
+          }
+        }
+      }, 100);
+
       return newInvoice;
     } catch (error) {
       console.error('Error adding invoice:', error);
@@ -3758,8 +5217,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      const invoiceToDelete = invoices.find(inv => inv.id === id);
+      const itemsToDelete = invoiceItems.filter(item => item.invoiceId === id);
+      
       setInvoices(invoices.filter(inv => inv.id !== id));
       setInvoiceItems(invoiceItems.filter(item => item.invoiceId !== id));
+      
+      // Registrar log
+      if (invoiceToDelete) {
+        const client = invoiceToDelete.clientId ? clients.find(c => c.id === invoiceToDelete.clientId) : null;
+        const itemsDescription = itemsToDelete.map(item => `${item.description} x${item.quantity}`).join(', ');
+        await addAuditLog({
+          actionType: 'cancel',
+          entityType: 'invoice',
+          entityId: id,
+          description: `Venta cancelada${client ? ` de ${client.name}` : ''}: ${itemsDescription} - Total: $${formatPrice(invoiceToDelete.total)}`,
+          metadata: {
+            clientId: invoiceToDelete.clientId,
+            clientName: client?.name,
+            total: invoiceToDelete.total,
+            itemsCount: itemsToDelete.length,
+          },
+        });
+      }
     } catch (error) {
       console.error('Error deleting invoice:', error);
     }
@@ -3826,6 +5306,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         updateInvoice,
         deleteInvoice,
         invoiceItems,
+        auditLogs,
+        auditLogsTotal,
+        addAuditLog,
+        getAuditLogs,
+        cleanupOldAuditLogs,
+        getPaymentsByDate,
+        getPaymentsByYear,
       }}
     >
       {children}

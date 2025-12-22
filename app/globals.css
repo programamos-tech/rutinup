@@ -8,6 +8,7 @@
   body {
     @apply bg-dark-900 text-gray-100;
     font-family: 'Inter', system-ui, sans-serif;
+    scrollbar-gutter: stable;
   }
   
   * {
@@ -27,7 +28,7 @@
   }
 
   .btn-secondary {
-    @apply bg-dark-800/50 text-gray-300 px-6 py-2.5 font-medium hover:bg-dark-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm border border-dark-700;
+    @apply bg-gray-100 dark:bg-dark-800/50 text-gray-700 dark:text-gray-300 px-6 py-2.5 font-medium hover:bg-gray-200 dark:hover:bg-dark-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm border border-gray-300 dark:border-dark-700;
   }
 
   .btn-success {
@@ -39,15 +40,15 @@
   }
 
   .input-field {
-    @apply w-full px-4 py-2.5 bg-dark-800/50 border border-dark-700 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/20 transition-all text-sm rounded-lg;
+    @apply w-full px-4 py-2.5 bg-white dark:bg-dark-800/50 border border-gray-300 dark:border-dark-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/20 transition-all text-sm rounded-lg;
   }
 
   .card {
-    @apply bg-dark-800/50 p-5 rounded-xl border border-dark-700/50 backdrop-blur-sm;
+    @apply bg-white dark:bg-dark-800/50 p-5 rounded-xl border border-gray-200 dark:border-dark-700/50 backdrop-blur-sm;
   }
   
   .metric-card {
-    @apply bg-dark-800/30 p-5 rounded-xl border border-dark-700/30 hover:border-primary-500/30 hover:bg-dark-800/50 transition-all backdrop-blur-sm;
+    @apply bg-gray-50 dark:bg-dark-800/30 p-5 rounded-xl border border-gray-200 dark:border-dark-700/30 hover:border-primary-500/30 hover:bg-gray-100 dark:hover:bg-dark-800/50 transition-all backdrop-blur-sm;
   }
 }
 
@@ -135,9 +136,9 @@
     border-radius: 4px;
   }
 
-  /* Para Firefox */
+  /* Para Firefox - se adapta al modo */
   input[type="time"] {
-    color-scheme: dark;
+    color-scheme: light dark;
   }
 
   @keyframes pulse {
@@ -159,31 +160,100 @@
 
   /* Personalización del time picker con colores de la plataforma */
   input[type="time"] {
-    color-scheme: dark;
+    color-scheme: light dark;
   }
 
-  /* Estilos para el texto del time picker (Chrome/Edge) */
+  /* Estilos para el texto del time picker (Chrome/Edge) - Light mode */
   input[type="time"]::-webkit-datetime-edit {
-    color: #f3f4f6;
+    color: #111827;
   }
 
   input[type="time"]::-webkit-datetime-edit-fields-wrapper {
-    color: #f3f4f6;
+    color: #111827;
   }
 
   input[type="time"]::-webkit-datetime-edit-text {
-    color: #9ca3af;
+    color: #6b7280;
   }
 
   input[type="time"]::-webkit-datetime-edit-hour-field:focus,
   input[type="time"]::-webkit-datetime-edit-minute-field:focus {
     background-color: rgba(239, 68, 68, 0.2);
-    color: #f3f4f6;
+    color: #111827;
     border-radius: 4px;
     outline: none;
   }
 
+  /* Dark mode styles */
+  @media (prefers-color-scheme: dark) {
+    input[type="time"]::-webkit-datetime-edit {
+      color: #f3f4f6;
+    }
+
+    input[type="time"]::-webkit-datetime-edit-fields-wrapper {
+      color: #f3f4f6;
+    }
+
+    input[type="time"]::-webkit-datetime-edit-text {
+      color: #9ca3af;
+    }
+
+    input[type="time"]::-webkit-datetime-edit-hour-field:focus,
+    input[type="time"]::-webkit-datetime-edit-minute-field:focus {
+      color: #f3f4f6;
+    }
+  }
+
   /* Nota: El dropdown interno del navegador no se puede personalizar completamente con CSS puro.
      Para una personalización completa, se necesitaría un componente React personalizado. */
+
+  /* Efecto de texto difuminado/glow rojo - Mejorado para modo light */
+  .text-danger-glow {
+    /* Modo light: efecto más sutil */
+    text-shadow: 
+      0 0 2px rgba(239, 68, 68, 0.3),
+      0 0 4px rgba(239, 68, 68, 0.2);
+  }
+
+  /* Modo dark: efecto más visible */
+  @media (prefers-color-scheme: dark) {
+    .text-danger-glow {
+      text-shadow: 
+        0 0 6px rgba(239, 68, 68, 0.6),
+        0 0 10px rgba(239, 68, 68, 0.4),
+        0 0 14px rgba(239, 68, 68, 0.3);
+    }
+  }
+
+  /* Si el elemento tiene clase dark, aplicar efecto dark */
+  .dark .text-danger-glow {
+    text-shadow: 
+      0 0 6px rgba(239, 68, 68, 0.6),
+      0 0 10px rgba(239, 68, 68, 0.4),
+      0 0 14px rgba(239, 68, 68, 0.3);
+  }
+
+  /* Animación hover para segmentos del pie chart */
+  .pie-segment {
+    transition: all 0.3s ease;
+    cursor: pointer;
+  }
+
+  .pie-segment:hover {
+    opacity: 0.85;
+    filter: brightness(1.1) drop-shadow(0 0 8px rgba(255, 255, 255, 0.3));
+    transform-origin: center;
+  }
+
+  /* Animación hover para barras de las gráficas */
+  .bar-segment {
+    transition: all 0.3s ease;
+    cursor: pointer;
+  }
+
+  .bar-segment:hover {
+    opacity: 0.85;
+    filter: brightness(1.15) drop-shadow(0 0 6px rgba(255, 255, 255, 0.25));
+  }
 }
 

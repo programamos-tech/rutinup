@@ -54,11 +54,14 @@ export async function updateSession(request: NextRequest) {
     '/memberships',
     '/clients',
     '/classes',
-    '/payments',
+    '/dashboard',
     '/reports',
     '/settings',
     '/trainers',
     '/onboarding',
+    '/logs',
+    '/tienda',
+    '/products',
   ]
   
   const isProtectedPath = protectedPaths.some(path => 
@@ -69,6 +72,73 @@ export async function updateSession(request: NextRequest) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
+  }
+
+  // Verificar permisos para usuarios no-admin
+  if (isProtectedPath && user) {
+    // Obtener perfil del usuario para verificar permisos
+    const { data: userProfile } = await supabase
+      .from('gym_accounts')
+      .select('role, permissions')
+      .eq('id', user.id)
+      .single()
+
+    if (userProfile && typeof userProfile === 'object' && 'role' in userProfile) {
+      const profile = userProfile as { role: string; permissions?: Record<string, boolean> };
+      // Los admins tienen acceso a todo
+      if (profile.role !== 'admin') {
+        const permissions = profile.permissions || {}
+        const pathname = request.nextUrl.pathname
+
+        // Mapeo de rutas a permisos requeridos
+        const routePermissions: Record<string, string[]> = {
+          '/dashboard': ['dashboard'],
+          '/memberships': ['memberships'],
+          '/clients': ['clients'],
+          '/trainers': ['trainers'],
+          '/classes': ['classes'],
+          '/products': ['products'],
+          '/tienda': ['tienda'],
+          '/settings': ['settings'], // Solo admins
+          '/logs': ['logs'], // Solo admins
+        }
+
+        // Verificar si la ruta requiere permisos específicos
+        const requiredPermissions = routePermissions[pathname]
+        if (requiredPermissions) {
+          // Settings y cash-closings solo para admins (ya verificado arriba, pero por seguridad)
+          if (pathname === '/settings' || pathname === '/logs') {
+            const url = request.nextUrl.clone()
+            url.pathname = '/dashboard' // Redirigir al dashboard o primer módulo permitido
+            return NextResponse.redirect(url)
+          }
+
+          // Verificar si el usuario tiene al menos uno de los permisos requeridos
+          const hasPermission = requiredPermissions.some(perm => 
+            permissions[perm] === true
+          )
+
+          if (!hasPermission) {
+            // Redirigir al primer módulo al que tiene acceso
+            const permissionRoutes = [
+              { permission: 'dashboard', route: '/dashboard' },
+              { permission: 'clients', route: '/clients' },
+              { permission: 'memberships', route: '/memberships' },
+              { permission: 'classes', route: '/classes' },
+              { permission: 'trainers', route: '/trainers' },
+            ]
+
+            const firstAllowedRoute = permissionRoutes.find(
+              ({ permission }) => permissions[permission] === true
+            )
+
+            const url = request.nextUrl.clone()
+            url.pathname = firstAllowedRoute?.route || '/dashboard'
+            return NextResponse.redirect(url)
+          }
+        }
+      }
+    }
   }
 
   // IMPORTANTE: Debes retornar el supabaseResponse tal cual.

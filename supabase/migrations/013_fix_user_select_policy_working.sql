@@ -22,3 +22,6 @@ CREATE POLICY "Users can view their own profile"
 -- Gym-based access can be handled in the application layer.
 
 
+
+
+

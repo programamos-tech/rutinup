@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { AppProvider } from '@/context/AppContext';
-import { AuthProvider } from '@/context/AuthContext';
+import { Providers } from '@/components/providers/Providers';
 
 export const metadata: Metadata = {
   title: 'Rutinup - Gestión de Gimnasios',
@@ -17,13 +16,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es" className="bg-black">
-      <body className="bg-dark-900 text-gray-100">
-        <AuthProvider>
-          <AppProvider>
-            {children}
-          </AppProvider>
-        </AuthProvider>
+    <html lang="es">
+      <body>
+        <Providers>
+          {children}
+        </Providers>
       </body>
     </html>
   );

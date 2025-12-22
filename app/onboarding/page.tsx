@@ -98,7 +98,7 @@ export default function OnboardingPage() {
 
         // Si el onboarding está completado, redirigir
         if (gymData.onboarding_step === null) {
-          router.push('/memberships');
+          router.push('/dashboard');
           return;
         }
 
@@ -193,7 +193,7 @@ export default function OnboardingPage() {
             
             // Si el onboarding está completado, redirigir
             if (currentStepInDB === null) {
-              router.push('/memberships');
+              router.push('/dashboard');
               isChecking = false;
               return;
             }
@@ -518,8 +518,8 @@ export default function OnboardingPage() {
 
       console.log('✅ Métodos de pago guardados en BD:', updatedData?.payment_methods);
       
-      // Redirigir a memberships
-      router.push('/memberships');
+      // Redirigir a dashboard
+      router.push('/payments');
     } catch (error) {
       console.error('Error inesperado al guardar métodos de pago:', error);
       alert('Error inesperado al guardar');
@@ -560,17 +560,17 @@ export default function OnboardingPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-dark-900 flex items-center justify-center">
+      <div className="min-h-screen bg-white dark:bg-dark-900 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
-          <p className="text-gray-400">Cargando...</p>
+          <p className="text-gray-600 dark:text-gray-400">Cargando...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-dark-900">
+    <div className="min-h-screen bg-white dark:bg-dark-900">
       <div className="container mx-auto px-6 py-8">
         {/* Header */}
         <div className="mb-8">
@@ -578,9 +578,9 @@ export default function OnboardingPage() {
             <span className="bg-gradient-to-r from-primary-500 to-primary-600 bg-clip-text text-transparent">
               RUTIN
             </span>
-            <span className="text-gray-50">UP</span>
+            <span className="text-gray-900 dark:text-gray-50">UP</span>
           </h1>
-          <p className="text-gray-400 text-sm">Configura tu gimnasio en pocos pasos</p>
+          <p className="text-gray-600 dark:text-gray-400 text-sm">Configura tu gimnasio en pocos pasos</p>
         </div>
 
         {/* Progress Steps */}
@@ -605,28 +605,28 @@ export default function OnboardingPage() {
                         : isActive
                         ? 'bg-primary-500 border-primary-500'
                         : canNavigate
-                        ? 'bg-dark-800 border-dark-700 hover:border-primary-500/50'
-                        : 'bg-dark-800 border-dark-700 opacity-50'
+                        ? 'bg-gray-100 dark:bg-dark-800 border-gray-300 dark:border-dark-700 hover:border-primary-500/50'
+                        : 'bg-gray-100 dark:bg-dark-800 border-gray-300 dark:border-dark-700 opacity-50'
                     }`}>
                       {isCompleted ? (
                         <CheckCircle2 className="w-6 h-6 text-white" />
                       ) : (
-                        <Icon className={`w-5 h-5 ${isActive ? 'text-white' : canNavigate ? 'text-gray-400' : 'text-gray-600'}`} />
+                        <Icon className={`w-5 h-5 ${isActive ? 'text-white' : canNavigate ? 'text-gray-600 dark:text-gray-400' : 'text-gray-400 dark:text-gray-600'}`} />
                       )}
                     </div>
-                    <p className={`text-xs mt-2 text-center ${isActive ? 'text-gray-50 font-medium' : canNavigate ? 'text-gray-400' : 'text-gray-600'}`}>
+                    <p className={`text-xs mt-2 text-center ${isActive ? 'text-gray-900 dark:text-gray-50 font-medium' : canNavigate ? 'text-gray-600 dark:text-gray-400' : 'text-gray-400 dark:text-gray-600'}`}>
                       {stepItem.title}
                     </p>
                   </div>
                   {index < steps.length - 1 && (
-                    <div className={`flex-1 h-0.5 mx-2 ${isCompleted ? 'bg-success-500' : 'bg-dark-700'}`} />
+                    <div className={`flex-1 h-0.5 mx-2 ${isCompleted ? 'bg-success-500' : 'bg-gray-300 dark:bg-dark-700'}`} />
                   )}
                 </div>
               );
             })}
           </div>
           <div className="text-center">
-            <p className="text-sm text-gray-400">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
               Paso {step} de {steps.length}
             </p>
           </div>
@@ -634,19 +634,19 @@ export default function OnboardingPage() {
 
         {/* Content */}
         <div className="max-w-3xl mx-auto">
-          <Card>
+          <Card className="bg-white dark:bg-dark-800/50 border border-gray-200 dark:border-dark-700/50">
             {/* Step 1: Información Básica */}
             {step === 1 && (
               <div className="space-y-6">
                 <div className="mb-6">
-                  <h2 className="text-2xl font-bold text-gray-50 mb-1">Información Básica</h2>
-                  <p className="text-gray-400 text-sm">Completa los datos adicionales de tu gimnasio</p>
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-50 mb-1">Información Básica</h2>
+                  <p className="text-gray-600 dark:text-gray-400 text-sm">Completa los datos adicionales de tu gimnasio</p>
                 </div>
 
                 <form onSubmit={handleStep1} className="space-y-5">
                   <div>
                     <div className="flex items-center gap-2 mb-1.5">
-                      <label className="block text-sm font-medium text-gray-300">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                         Dirección del gimnasio
                         <span className="text-danger-400 ml-1">*</span>
                       </label>
@@ -658,7 +658,7 @@ export default function OnboardingPage() {
                     </div>
                     <div className="relative">
                       <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center justify-center h-5">
-                        <MapPin className="w-4 h-4 text-gray-400" />
+                        <MapPin className="w-4 h-4 text-gray-500 dark:text-gray-400" />
                       </div>
                       <Input
                         value={formData.address}
@@ -672,9 +672,9 @@ export default function OnboardingPage() {
 
                   <div>
                     <div className="flex items-center gap-2 mb-1.5">
-                      <label className="block text-sm font-medium text-gray-300">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                         NIT/Cédula del establecimiento
-                        <span className="text-gray-500 ml-1">(opcional)</span>
+                        <span className="text-gray-500 dark:text-gray-500 ml-1">(opcional)</span>
                       </label>
                       <Tooltip 
                         content="Requerido para facturación y obligaciones tributarias."
@@ -691,7 +691,7 @@ export default function OnboardingPage() {
 
                   <div>
                     <div className="flex items-center gap-2 mb-4">
-                      <label className="block text-sm font-medium text-gray-300">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                         Horario de funcionamiento
                         <span className="text-danger-400 ml-1">*</span>
                       </label>
@@ -703,37 +703,37 @@ export default function OnboardingPage() {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1.5">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                           Hora de apertura
                           <span className="text-danger-400 ml-1">*</span>
                         </label>
                         <div className="relative">
                           <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none z-10">
-                            <Clock className="w-4 h-4 text-gray-300" />
+                            <Clock className="w-4 h-4 text-gray-500 dark:text-gray-300" />
                           </div>
                           <input
                             type="time"
                             value={formData.openingTime}
                             onChange={(e) => setFormData({ ...formData, openingTime: e.target.value })}
-                            className="w-full px-4 py-2.5 pl-10 pr-4 bg-dark-800/50 border border-dark-700/50 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/20 transition-all text-sm rounded-lg cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+                            className="w-full px-4 py-2.5 pl-10 pr-4 bg-gray-100 dark:bg-dark-800/50 border border-gray-300 dark:border-dark-700/50 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/20 transition-all text-sm rounded-lg cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer"
                             required
                           />
                         </div>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1.5">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                           Hora de cierre
                           <span className="text-danger-400 ml-1">*</span>
                         </label>
                         <div className="relative">
                           <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none z-10">
-                            <Clock className="w-4 h-4 text-gray-300" />
+                            <Clock className="w-4 h-4 text-gray-500 dark:text-gray-300" />
                           </div>
                           <input
                             type="time"
                             value={formData.closingTime}
                             onChange={(e) => setFormData({ ...formData, closingTime: e.target.value })}
-                            className="w-full px-4 py-2.5 pl-10 pr-4 bg-dark-800/50 border border-dark-700/50 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/20 transition-all text-sm rounded-lg cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+                            className="w-full px-4 py-2.5 pl-10 pr-4 bg-gray-100 dark:bg-dark-800/50 border border-gray-300 dark:border-dark-700/50 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/20 transition-all text-sm rounded-lg cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer"
                             required
                           />
                         </div>
@@ -741,7 +741,7 @@ export default function OnboardingPage() {
                     </div>
                   </div>
 
-                  <div className="flex justify-end pt-4 border-t border-dark-700/30">
+                  <div className="flex justify-end pt-4 border-t border-gray-200 dark:border-dark-700/30">
                     <Button 
                       type="submit" 
                       variant="primary" 
@@ -760,19 +760,19 @@ export default function OnboardingPage() {
             {step === 2 && (
               <div className="space-y-6">
                 <div className="mb-6">
-                  <h2 className="text-2xl font-bold text-gray-50">Logo del Gimnasio</h2>
-                  <p className="text-gray-400 text-sm">Sube el logo de tu gimnasio (opcional)</p>
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-50">Logo del Gimnasio</h2>
+                  <p className="text-gray-600 dark:text-gray-400 text-sm">Sube el logo de tu gimnasio (opcional)</p>
                 </div>
 
                 {!formData.logo ? (
                   <label className="block cursor-pointer">
-                    <div className="text-center py-12 border-2 border-dashed border-dark-700/50 rounded-lg hover:border-primary-500/50 transition-all">
+                    <div className="text-center py-12 border-2 border-dashed border-gray-300 dark:border-dark-700/50 rounded-lg hover:border-primary-500/50 dark:hover:border-primary-500/50 transition-all">
                       <div className="flex flex-col items-center">
                         <div className="w-16 h-16 bg-primary-500/10 rounded-full flex items-center justify-center mb-4">
-                          <Upload className="w-8 h-8 text-primary-400" />
+                          <Upload className="w-8 h-8 text-primary-500 dark:text-primary-400" />
                         </div>
-                        <p className="text-gray-400 mb-2 font-medium">Sube el logo de tu gimnasio</p>
-                        <p className="text-sm text-gray-500 mb-6">PNG, JPG o SVG (máx. 5MB)</p>
+                        <p className="text-gray-700 dark:text-gray-400 mb-2 font-medium">Sube el logo de tu gimnasio</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-500 mb-6">PNG, JPG o SVG (máx. 5MB)</p>
                         <div className="inline-flex">
                           <input
                             type="file"
@@ -790,7 +790,7 @@ export default function OnboardingPage() {
                   </label>
                 ) : (
                   <div className="space-y-4">
-                    <div className="relative bg-dark-800/30 p-6 rounded-lg border border-dark-700/30">
+                    <div className="relative bg-gray-50 dark:bg-dark-800/30 p-6 rounded-lg border border-gray-200 dark:border-dark-700/30">
                       <div className="flex flex-col items-center">
                         <div className="relative mb-3">
                           <img
@@ -808,7 +808,7 @@ export default function OnboardingPage() {
                               className="hidden"
                               id="logo-change"
                             />
-                            <div className="w-full px-4 py-2 bg-dark-800/50 text-gray-300 hover:bg-dark-800 border border-dark-700 font-medium transition-all rounded-lg text-sm flex items-center justify-center cursor-pointer">
+                            <div className="w-full px-4 py-2 bg-gray-100 dark:bg-dark-800/50 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-dark-800 border border-gray-300 dark:border-dark-700 font-medium transition-all rounded-lg text-sm flex items-center justify-center cursor-pointer">
                               <Upload className="w-4 h-4 mr-2" />
                               Cambiar
                             </div>
@@ -830,10 +830,10 @@ export default function OnboardingPage() {
 
                 <div className="bg-primary-500/10 border border-primary-500/30 rounded-lg p-4">
                   <div className="flex items-start gap-3">
-                    <Sparkles className="w-5 h-5 text-primary-400 mt-0.5 flex-shrink-0" />
+                    <Sparkles className="w-5 h-5 text-primary-500 dark:text-primary-400 mt-0.5 flex-shrink-0" />
                     <div>
-                      <p className="text-sm text-gray-300 font-medium mb-1">Recomendaciones</p>
-                      <ul className="text-xs text-gray-400 space-y-1">
+                      <p className="text-sm text-gray-700 dark:text-gray-300 font-medium mb-1">Recomendaciones</p>
+                      <ul className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
                         <li>• Usa una imagen cuadrada o rectangular</li>
                         <li>• Formato recomendado: PNG con fondo transparente</li>
                         <li>• Tamaño ideal: 512x512 píxeles o mayor</li>
@@ -843,7 +843,7 @@ export default function OnboardingPage() {
                   </div>
                 </div>
 
-                <div className="flex justify-between pt-4 border-t border-dark-700/30">
+                <div className="flex justify-between pt-4 border-t border-gray-200 dark:border-dark-700/30">
                   <Button variant="secondary" onClick={() => goToStep(1)} disabled={saving}>
                     <ArrowLeft className="w-4 h-4 mr-2" />
                     Atrás
@@ -860,8 +860,8 @@ export default function OnboardingPage() {
             {step === 3 && (
               <div className="space-y-6">
                 <div className="mb-6">
-                  <h2 className="text-2xl font-bold text-gray-50">Métodos de Pago</h2>
-                  <p className="text-gray-400 text-sm">Selecciona los métodos que aceptas en tu gimnasio</p>
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-50">Métodos de Pago</h2>
+                  <p className="text-gray-600 dark:text-gray-400 text-sm">Selecciona los métodos que aceptas en tu gimnasio</p>
                 </div>
 
                 <div className="space-y-3">
@@ -877,7 +877,7 @@ export default function OnboardingPage() {
                         className={`flex items-start gap-4 p-4 rounded-lg border cursor-pointer transition-all ${
                           isSelected
                             ? 'bg-primary-500/10 border-primary-500/50'
-                            : 'bg-dark-800/30 border-dark-700/30 hover:border-dark-600'
+                            : 'bg-white dark:bg-dark-800/30 border-gray-200 dark:border-dark-700/30 hover:border-gray-300 dark:hover:border-dark-600'
                         }`}
                       >
                         <div className="relative flex-shrink-0 mt-0.5">
@@ -902,7 +902,7 @@ export default function OnboardingPage() {
                           <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
                             isSelected
                               ? 'bg-primary-500 border-primary-500'
-                              : 'bg-dark-800 border-dark-600'
+                              : 'bg-white dark:bg-dark-800 border-gray-300 dark:border-dark-600'
                           }`}>
                             {isSelected && (
                               <svg className="w-3.5 h-3.5 text-white" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" viewBox="0 0 24 24" stroke="currentColor">
@@ -912,15 +912,15 @@ export default function OnboardingPage() {
                           </div>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-gray-50">{method.label}</p>
-                          <p className="text-sm text-gray-400 mt-0.5">{method.description}</p>
+                          <p className="font-semibold text-gray-900 dark:text-gray-50">{method.label}</p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">{method.description}</p>
                         </div>
                       </label>
                     );
                   })}
                 </div>
 
-                <div className="flex justify-between pt-4 border-t border-dark-700/30">
+                <div className="flex justify-between pt-4 border-t border-gray-200 dark:border-dark-700/30">
                   <Button variant="secondary" onClick={() => goToStep(2)} disabled={saving}>
                     <ArrowLeft className="w-4 h-4 mr-2" />
                     Atrás
@@ -938,5 +938,8 @@ export default function OnboardingPage() {
     </div>
   );
 }
+
+
+
 
 

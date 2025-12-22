@@ -23,3 +23,6 @@ ALTER TABLE public.users
 -- 3. Si gym_id es NULL, la FK no se valida (NULL bypassa foreign keys)
 
 
+
+
+

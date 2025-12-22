@@ -52,3 +52,6 @@ USING (
   (storage.foldername(name))[1] = get_user_gym_id()::text
 );
 
+
+
+

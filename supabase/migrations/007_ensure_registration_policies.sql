@@ -30,3 +30,6 @@ CREATE POLICY "Allow gym creation during registration"
 -- al menos las políticas RLS permitirán la inserción durante el registro.
 
 
+
+
+

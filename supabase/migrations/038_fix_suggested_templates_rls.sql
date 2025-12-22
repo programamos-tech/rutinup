@@ -32,3 +32,6 @@ COMMENT ON POLICY "Authenticated users can read suggested templates" ON suggeste
   'Permite que cualquier usuario autenticado pueda leer las plantillas sugeridas';
 
 
+
+
+

@@ -53,3 +53,6 @@ CREATE POLICY "Users can view users from their gym"
 -- 4. Use a different RLS pattern that doesn't cause recursion
 
 
+
+
+
