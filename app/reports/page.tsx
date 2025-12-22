@@ -140,43 +140,47 @@ export default function ReportsPage() {
 
   return (
     <MainLayout>
-      <div className="space-y-6">
-        <div className="flex justify-between items-center">
+      <div className="space-y-4 sm:space-y-6">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-50">Reportes Financieros</h1>
-            <p className="text-gray-400 mt-1">Análisis de ganancias y métricas</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-50">Reportes Financieros</h1>
+            <p className="text-sm sm:text-base text-gray-400 mt-1">Análisis de ganancias y métricas</p>
           </div>
-          <Button variant="secondary">
-            <Download className="w-4 h-4 mr-2" />
+          <Button variant="secondary" className="w-full sm:w-auto text-xs sm:text-sm">
+            <Download className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
             Exportar Reporte
           </Button>
         </div>
 
         {/* Selector de período */}
         <Card>
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+            <div className="grid grid-cols-2 sm:flex gap-2">
               <Button
                 variant={period === 'today' ? 'primary' : 'secondary'}
                 onClick={() => setPeriod('today')}
+                className="text-xs sm:text-sm"
               >
                 Hoy
               </Button>
               <Button
                 variant={period === 'week' ? 'primary' : 'secondary'}
                 onClick={() => setPeriod('week')}
+                className="text-xs sm:text-sm"
               >
                 Semana
               </Button>
               <Button
                 variant={period === 'month' ? 'primary' : 'secondary'}
                 onClick={() => setPeriod('month')}
+                className="text-xs sm:text-sm"
               >
                 Mes
               </Button>
               <Button
                 variant={period === 'year' ? 'primary' : 'secondary'}
                 onClick={() => setPeriod('year')}
+                className="text-xs sm:text-sm"
               >
                 Año
               </Button>
@@ -186,7 +190,7 @@ export default function ReportsPage() {
                 type="month"
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
-                className="w-48"
+                className="w-full sm:w-48"
               />
             )}
             {period === 'year' && (
@@ -196,7 +200,7 @@ export default function ReportsPage() {
                 onChange={(e) => setSelectedYear(e.target.value)}
                 min="2020"
                 max="2030"
-                className="w-32"
+                className="w-full sm:w-32"
               />
             )}
           </div>

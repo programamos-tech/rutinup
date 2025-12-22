@@ -239,7 +239,7 @@ export default function RegisterPage() {
             </div>
           )}
 
-          <form onSubmit={handleRegister} className="space-y-5">
+          <form onSubmit={handleRegister} className="space-y-4 sm:space-y-5">
             <Input
               label="Nombre del gimnasio"
               type="text"

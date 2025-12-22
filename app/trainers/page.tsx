@@ -150,7 +150,7 @@ export default function TrainersPage() {
     <MainLayout>
       <div className="space-y-6 min-h-[calc(100vh-200px)] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-50 mb-2">Entrenadores</h1>
             <p className="text-gray-600 dark:text-gray-400">Gestiona los entrenadores de tu gimnasio</p>
@@ -158,10 +158,11 @@ export default function TrainersPage() {
           <Button
             variant="primary"
             onClick={() => handleOpenModal()}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 w-full sm:w-auto whitespace-nowrap"
           >
             <Plus className="w-4 h-4" />
-            Agregar Entrenador
+            <span className="hidden sm:inline">Agregar Entrenador</span>
+            <span className="sm:hidden">Agregar</span>
           </Button>
         </div>
 
@@ -170,10 +171,10 @@ export default function TrainersPage() {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500 dark:text-gray-500" />
           <Input
             type="text"
-            placeholder="Buscar entrenadores por nombre, email o teléfono..."
+            placeholder="Buscar entrenadores..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
+            className="pl-9 sm:pl-10 text-sm"
           />
         </div>
 
@@ -212,7 +213,7 @@ export default function TrainersPage() {
             </Card>
           )
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             {filteredTrainers.map((trainer) => {
               const classCount = getTrainerClassCount(trainer.id);
               return (
@@ -233,7 +234,7 @@ export default function TrainersPage() {
                     </div>
                   </div>
 
-                  <div className="space-y-2 mb-4">
+                  <div className="space-y-2 mb-3 sm:mb-4">
                     {trainer.email && (
                       <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                         <Mail className="w-4 h-4" />
@@ -253,10 +254,10 @@ export default function TrainersPage() {
                       variant="secondary"
                       size="sm"
                       onClick={() => handleOpenModal(trainer)}
-                      className="flex-1"
+                      className="flex-1 text-xs sm:text-sm"
                     >
-                      <Edit className="w-4 h-4 mr-1" />
-                      Editar
+                      <Edit className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1" />
+                      <span className="hidden sm:inline ml-1">Editar</span>
                     </Button>
                     <Button
                       variant="danger"

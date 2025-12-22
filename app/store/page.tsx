@@ -211,42 +211,42 @@ export default function StorePage() {
 
   return (
     <MainLayout>
-      <div className="min-h-screen bg-dark-900 p-6">
+      <div className="min-h-screen bg-dark-900">
         {/* Header */}
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-dark-50">Tienda</h1>
-            <p className="text-dark-400 mt-1">Gestiona el catálogo de productos</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-dark-50">Tienda</h1>
+            <p className="text-sm sm:text-base text-dark-400 mt-1">Gestiona el catálogo de productos</p>
           </div>
-          <Button onClick={() => handleOpenModal()} disabled={!gym}>
-            <Plus className="w-4 h-4 mr-2" />
+          <Button onClick={() => handleOpenModal()} disabled={!gym} className="w-full sm:w-auto text-xs sm:text-sm">
+            <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
             Nuevo Producto
           </Button>
         </div>
 
         {/* Métricas */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <Card className="bg-dark-800 border-dark-700 p-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
+          <Card className="bg-dark-800 border-dark-700 p-3 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-dark-400 text-sm">Total Productos</p>
-                <p className="text-2xl font-bold text-dark-50 mt-1">
+                <p className="text-dark-400 text-xs sm:text-sm">Total Productos</p>
+                <p className="text-xl sm:text-2xl font-bold text-dark-50 mt-1">
                   {metrics.totalProducts}
                 </p>
               </div>
-              <Package className="w-8 h-8 text-primary-400" />
+              <Package className="w-6 h-6 sm:w-8 sm:h-8 text-primary-400" />
             </div>
           </Card>
 
-          <Card className="bg-dark-800 border-dark-700 p-6">
+          <Card className="bg-dark-800 border-dark-700 p-3 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-dark-400 text-sm">Stock Bajo</p>
-                <p className="text-2xl font-bold text-warning-400 mt-1">
+                <p className="text-dark-400 text-xs sm:text-sm">Stock Bajo</p>
+                <p className="text-xl sm:text-2xl font-bold text-warning-400 mt-1">
                   {metrics.lowStockProducts}
                 </p>
               </div>
-              <AlertCircle className="w-8 h-8 text-warning-400" />
+              <AlertCircle className="w-6 h-6 sm:w-8 sm:h-8 text-warning-400" />
             </div>
           </Card>
 
@@ -575,4 +575,5 @@ export default function StorePage() {
     </MainLayout>
   );
 }
+
 

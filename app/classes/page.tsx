@@ -142,12 +142,18 @@ export default function ClassesPage() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="primary" onClick={() => {
-              setEditingClass(null);
-              setShowClassModal(true);
-            }} data-tour="classes-add">
+            <Button 
+              variant="primary" 
+              onClick={() => {
+                setEditingClass(null);
+                setShowClassModal(true);
+              }} 
+              data-tour="classes-add"
+              className="w-full sm:w-auto whitespace-nowrap"
+            >
               <Plus className="w-4 h-4 mr-2" />
-              Nueva Clase
+              <span className="hidden sm:inline">Nueva Clase</span>
+              <span className="sm:hidden">Nueva</span>
             </Button>
           </div>
         </div>
@@ -183,56 +189,64 @@ export default function ClassesPage() {
             <div className="flex gap-2 border-b border-gray-200 dark:border-dark-700/50" data-tour="classes-views">
           <button
             onClick={() => setViewMode('calendar')}
-            className={`px-4 py-2 font-medium text-sm transition-all ${
+            className={`px-3 sm:px-4 py-2 font-medium text-xs sm:text-sm transition-all whitespace-nowrap ${
               viewMode === 'calendar'
                 ? 'text-primary-500 dark:text-primary-400 border-b-2 border-primary-500'
                 : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300'
             }`}
           >
-            <Calendar className="w-4 h-4 inline mr-2" />
-            Calendario
+            <Calendar className="w-3 h-3 sm:w-4 sm:h-4 inline mr-1 sm:mr-2" />
+            <span className="hidden sm:inline">Calendario</span>
+            <span className="sm:hidden">Cal.</span>
           </button>
           <button
             onClick={() => setViewMode('list')}
-            className={`px-4 py-2 font-medium text-sm transition-all ${
+            className={`px-3 sm:px-4 py-2 font-medium text-xs sm:text-sm transition-all whitespace-nowrap ${
               viewMode === 'list'
                 ? 'text-primary-500 dark:text-primary-400 border-b-2 border-primary-500'
                 : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300'
             }`}
           >
-            <List className="w-4 h-4 inline mr-2" />
+            <List className="w-3 h-3 sm:w-4 sm:h-4 inline mr-1 sm:mr-2" />
             Lista
           </button>
         </div>
 
         {/* Filtros */}
-        <div className="flex gap-2">
-          <Select
-            label="Entrenador"
-            options={[
-              { value: 'all', label: 'Todos' },
-              ...trainers.map((t) => ({ value: t.id, label: t.name })),
-            ]}
-            value={filterTrainer}
-            onChange={(e) => setFilterTrainer(e.target.value)}
-            className="w-48"
-          />
-          <div className="flex gap-2 items-end">
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+          <div className="w-full sm:w-48">
+            <Select
+              label="Entrenador"
+              options={[
+                { value: 'all', label: 'Todos' },
+                ...trainers.map((t) => ({ value: t.id, label: t.name })),
+              ]}
+              value={filterTrainer}
+              onChange={(e) => setFilterTrainer(e.target.value)}
+            />
+          </div>
+          <div className="flex gap-1.5 sm:gap-2 items-end">
             <Button
               variant={filterStatus === 'all' ? 'primary' : 'secondary'}
               onClick={() => setFilterStatus('all')}
+              size="sm"
+              className="flex-1 sm:flex-none text-[11px] sm:text-xs px-2 sm:px-4"
             >
               Todas
             </Button>
             <Button
               variant={filterStatus === 'active' ? 'primary' : 'secondary'}
               onClick={() => setFilterStatus('active')}
+              size="sm"
+              className="flex-1 sm:flex-none text-[11px] sm:text-xs px-2 sm:px-4"
             >
               Activas
             </Button>
             <Button
               variant={filterStatus === 'inactive' ? 'primary' : 'secondary'}
               onClick={() => setFilterStatus('inactive')}
+              size="sm"
+              className="flex-1 sm:flex-none text-[11px] sm:text-xs px-2 sm:px-4"
             >
               Inactivas
             </Button>
@@ -241,14 +255,15 @@ export default function ClassesPage() {
 
         {/* Vista de Calendario */}
         {viewMode === 'calendar' && (
-          <Card>
-            <div className="flex justify-between items-center mb-6">
-              <div className="flex items-center gap-4">
+          <Card className="p-3 sm:p-4 md:p-6">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-3 mb-3 sm:mb-4 md:mb-6">
+              <div className="flex items-center gap-2 justify-center sm:justify-start">
                 <Button
                   variant="secondary"
                   onClick={() => setCurrentWeek(subWeeks(currentWeek, 1))}
+                  className="p-1.5 sm:p-2 min-w-0"
                 >
-                  <ChevronLeft className="w-4 h-4" />
+                  <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </Button>
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-50">
                   {format(weekStart, 'dd MMM')} - {format(addDays(weekStart, 6), 'dd MMM yyyy')}
@@ -256,16 +271,18 @@ export default function ClassesPage() {
                 <Button
                   variant="secondary"
                   onClick={() => setCurrentWeek(addWeeks(currentWeek, 1))}
+                  className="p-1.5 sm:p-2 min-w-0"
                 >
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
-                <Button
-                  variant="secondary"
-                  onClick={() => setCurrentWeek(new Date())}
-                >
-                  Hoy
+                  <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </Button>
               </div>
+              <Button
+                variant="secondary"
+                onClick={() => setCurrentWeek(new Date())}
+                className="text-xs sm:text-sm py-1.5 sm:py-2"
+              >
+                Hoy
+              </Button>
             </div>
 
             <div className="grid grid-cols-7 gap-2">
@@ -326,10 +343,63 @@ export default function ClassesPage() {
                           );
                         })}
                       </div>
-                    )}
-                  </div>
-                );
-              })}
+                    );
+                  })}
+
+                  {/* Clases por día */}
+                  {weekDays.map((day, dayIndex) => {
+                    const dayClasses = getClassesForDay(day);
+                    return (
+                      <div
+                        key={dayIndex}
+                        className="min-h-[180px] p-2 bg-dark-800/30 rounded-lg border border-dark-700/30"
+                      >
+                        {dayClasses.length === 0 ? (
+                          <p className="text-xs text-gray-500 text-center mt-2">Sin clases</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {dayClasses.map((classItem) => {
+                              const trainer = trainers.find((t) => t.id === classItem.trainerId);
+                              const enrollmentCount = getEnrollmentCount(classItem.id);
+                              const isFull = enrollmentCount >= classItem.capacity;
+                              
+                              return (
+                                <div
+                                  key={classItem.id}
+                                  className={`p-2 rounded text-xs cursor-pointer transition-all ${
+                                    classItem.color 
+                                      ? `bg-[${classItem.color}]/20 border border-[${classItem.color}]/50`
+                                      : 'bg-primary-500/20 border border-primary-500/50'
+                                  } ${isFull ? 'opacity-60' : ''}`}
+                                  onClick={() => {
+                                    setSelectedClass(classItem);
+                                    setSelectedDateForAttendance(day);
+                                    setShowAttendanceModal(true);
+                                  }}
+                                >
+                                  <p className="font-semibold text-gray-50 leading-tight mb-1 line-clamp-2">{classItem.name}</p>
+                                  <p className="text-gray-400 leading-tight mb-1">{formatTime(classItem.startTime)}</p>
+                                  <div className="flex items-center gap-1">
+                                    <p className="text-gray-500 leading-tight text-[10px]">
+                                      {enrollmentCount}/{classItem.capacity}
+                                    </p>
+                                    <Tooltip 
+                                      content={`${enrollmentCount} personas inscritas de una capacidad máxima de ${classItem.capacity}. Entrenador: ${trainer?.name || 'No asignado'}`}
+                                      icon
+                                      position="top"
+                                      className="ml-0.5"
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </Card>
         )}

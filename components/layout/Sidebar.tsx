@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
@@ -36,6 +36,24 @@ export function Sidebar() {
   const pathname = usePathname();
   const { gym } = useApp();
   const { userProfile, signOut, user } = useAuth();
+  const [isOpen, setIsOpen] = useState(false);
+
+  // Cerrar sidebar al cambiar de ruta en m?vil
+  useEffect(() => {
+    setIsOpen(false);
+  }, [pathname]);
+
+  // Prevenir scroll del body cuando el sidebar est? abierto en m?vil
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen]);
 
   // Filtrar menú basado en permisos del usuario
   // Los admins siempre ven todos los módulos
@@ -77,7 +95,7 @@ export function Sidebar() {
         <div className="flex items-center gap-3">
           {/* Logo RUTINUP */}
           <div className="flex-shrink-0">
-            <h1 className="text-4xl font-bogle font-bold uppercase leading-tight">
+            <h1 className="text-3xl sm:text-4xl font-bogle font-bold uppercase leading-tight">
               <span className="bg-gradient-to-r from-primary-500 to-primary-600 bg-clip-text text-transparent">
                 RUTIN
               </span>
@@ -155,12 +173,12 @@ export function Sidebar() {
           onClick={async (e) => {
             e.preventDefault();
             try {
-              console.log('Cerrando sesión...');
+              console.log('Cerrando sesi?n...');
               await signOut();
-              console.log('Sesión cerrada');
+              console.log('Sesi?n cerrada');
             } catch (error) {
-              console.error('Error al cerrar sesión:', error);
-              alert('Error al cerrar sesión. Por favor, intenta de nuevo.');
+              console.error('Error al cerrar sesi?n:', error);
+              alert('Error al cerrar sesi?n. Por favor, intenta de nuevo.');
             }
           }}
           className="flex items-center w-full px-3 py-2.5 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-800/50 hover:text-gray-900 dark:hover:text-gray-300 transition-all rounded-lg text-sm font-medium"
@@ -169,7 +187,8 @@ export function Sidebar() {
           Cerrar sesión
         </button>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 

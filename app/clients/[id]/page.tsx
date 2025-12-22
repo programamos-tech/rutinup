@@ -374,9 +374,9 @@ export default function ClientDetailPage() {
               rel="noopener noreferrer"
               className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-primary-500 dark:hover:text-primary-400 transition-colors mt-1 group"
             >
-              <Phone className="w-4 h-4" />
-              <span>{client.phone}</span>
-              <span className="text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+              <Phone className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+              <span className="break-all">{client.phone}</span>
+              <span className="text-[10px] sm:text-xs opacity-0 group-hover:opacity-100 transition-opacity hidden sm:inline whitespace-nowrap">
                 (Abrir WhatsApp)
               </span>
             </a>
@@ -392,8 +392,8 @@ export default function ClientDetailPage() {
           <Card className="bg-gradient-to-r from-gray-50 via-gray-100/50 to-gray-50 dark:bg-gradient-to-r dark:from-dark-800 dark:to-dark-750 border-gray-200 dark:border-dark-700">
             <div className="flex items-center justify-between">
               <div className="flex-1">
-                <div className="flex items-center gap-3 mb-3">
-                  <Badge variant="info" className="text-sm">
+                <div className="flex items-center gap-2 mb-1.5 sm:mb-2">
+                  <Badge variant="info" className="text-[9px] sm:text-[10px] md:text-xs">
                     {clientMemberships.filter(m => m.status === 'active').length > 1 
                       ? `${clientMemberships.filter(m => m.status === 'active').length} Membresías Activas`
                       : (paymentStatus.membershipType && typeof paymentStatus.membershipType === 'object' && 'name' in paymentStatus.membershipType)
@@ -469,13 +469,13 @@ export default function ClientDetailPage() {
         )}
 
         {/* Tabs */}
-        <div>
-          <nav className="flex space-x-2">
+        <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+          <nav className="flex space-x-1 pb-2 scrollbar-hide min-w-max">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`py-2.5 px-4 font-medium text-sm rounded-lg transition-all ${
+                className={`py-1 sm:py-1.5 md:py-2 px-2 sm:px-2.5 md:px-4 font-medium text-[9px] sm:text-[10px] md:text-xs lg:text-sm rounded-lg transition-all whitespace-nowrap flex-shrink-0 ${
                   activeTab === tab.id
                     ? 'bg-primary-500/10 dark:bg-primary-500/20 text-primary-700 dark:text-primary-400 border border-primary-500/40 dark:border-primary-500/30 font-semibold'
                     : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-800/50'
@@ -490,12 +490,12 @@ export default function ClientDetailPage() {
         {/* Tab Content */}
         {activeTab === 'info' && (
           <>
-            <Card>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="h-20 w-20 rounded-full bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center">
-                      <span className="text-3xl font-bold text-white">
+            <Card className="p-3 sm:p-4 md:p-6">
+              <div className="space-y-3 sm:space-y-4">
+                <div className="flex flex-col gap-2.5 sm:gap-3">
+                  <div className="flex items-center gap-2.5 sm:gap-3">
+                    <div className="h-12 w-12 sm:h-14 sm:w-14 md:h-16 md:w-16 rounded-full bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center flex-shrink-0">
+                      <span className="text-lg sm:text-xl md:text-2xl font-bold text-white">
                         {client.name.charAt(0).toUpperCase()}
                       </span>
                     </div>
@@ -507,14 +507,18 @@ export default function ClientDetailPage() {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="secondary" onClick={() => setShowEditModal(true)}>
-                      <Edit className="w-4 h-4 mr-2" />
-                      Editar
+                    <Button 
+                      variant="secondary" 
+                      onClick={() => setShowEditModal(true)}
+                      className="w-full text-xs sm:text-sm py-1.5 sm:py-2"
+                    >
+                      <Edit className="w-3 h-3 sm:w-3.5 sm:h-3.5 mr-1.5" />
+                      <span>Editar</span>
                     </Button>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 pt-4">
+                <div className="grid grid-cols-1 gap-2.5 sm:gap-3 pt-2 sm:pt-3 border-t border-dark-700">
                   <div>
                     <p className="text-sm text-gray-600 dark:text-gray-400">Email</p>
                     <p className="font-medium text-gray-900 dark:text-gray-50">{client.email || '-'}</p>
@@ -528,7 +532,7 @@ export default function ClientDetailPage() {
                         rel="noopener noreferrer"
                         className="flex items-center gap-2 font-medium text-primary-500 dark:text-primary-400 hover:text-primary-600 dark:hover:text-primary-300 transition-colors"
                       >
-                        <Phone className="w-4 h-4" />
+                        <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
                         <span>{client.phone}</span>
                       </a>
                     ) : (
@@ -579,7 +583,7 @@ export default function ClientDetailPage() {
                 </Button>
               )}
             </div>
-            <div className="space-y-3">
+            <div className="space-y-2 sm:space-y-3">
               {clientMemberships.length === 0 ? (
                 <p className="text-gray-600 dark:text-gray-400 text-center py-8">
                   No hay membresías asignadas
@@ -702,7 +706,7 @@ export default function ClientDetailPage() {
                         isActive ? 'bg-white dark:bg-dark-800 border-gray-200 dark:border-dark-600' : 'bg-gray-50 dark:bg-dark-800/30 border-gray-200 dark:border-dark-700/30'
                       }`}
                     >
-                      <div className="flex justify-between items-start mb-4">
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 sm:gap-0 mb-3 sm:mb-4">
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-2 flex-wrap">
                             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-50">{type?.name || 'Membresía'}</h3>
@@ -884,7 +888,7 @@ export default function ClientDetailPage() {
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-50">Pagos</h2>
             </div>
-            <div className="space-y-3">
+            <div className="space-y-2 sm:space-y-3">
               {clientPayments.length === 0 ? (
                 <p className="text-gray-600 dark:text-gray-400 text-center py-8">No hay pagos registrados</p>
               ) : (
@@ -948,7 +952,7 @@ export default function ClientDetailPage() {
                             </p>
                           )}
                         </div>
-                        <Badge variant={payment.status === 'completed' ? 'success' : 'warning'}>
+                        <Badge variant={payment.status === 'completed' ? 'success' : 'warning'} className="text-xs ml-2 flex-shrink-0">
                           {payment.status === 'completed' ? 'Completado' : payment.status}
                         </Badge>
                       </div>
@@ -956,20 +960,22 @@ export default function ClientDetailPage() {
                         <div className="flex gap-2 pt-3 border-t border-gray-200 dark:border-dark-700/30">
                           <Button
                             variant="secondary"
-                            className="flex-1"
+                            className="flex-1 text-xs sm:text-sm"
                             onClick={handleDownload}
                           >
-                            <Download className="w-4 h-4 mr-2" />
-                            Descargar Comprobante
+                            <Download className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                            <span className="hidden sm:inline">Descargar Comprobante</span>
+                            <span className="sm:hidden">Descargar</span>
                           </Button>
                           {canSendWhatsApp && (
                             <Button
                               variant="success"
-                              className="flex-1"
+                              className="flex-1 text-xs sm:text-sm"
                               onClick={handleSendWhatsApp}
                             >
-                              <MessageCircle className="w-4 h-4 mr-2" />
-                              Enviar por WhatsApp
+                              <MessageCircle className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                              <span className="hidden sm:inline">Enviar por WhatsApp</span>
+                              <span className="sm:hidden">WhatsApp</span>
                             </Button>
                           )}
                         </div>
@@ -1048,7 +1054,7 @@ export default function ClientDetailPage() {
         )}
 
         {activeTab === 'weight' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
             {/* Registro de Peso */}
             <Card>
               <div className="flex justify-between items-center mb-4">

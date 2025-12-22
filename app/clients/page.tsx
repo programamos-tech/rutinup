@@ -365,14 +365,20 @@ export default function ClientsPage() {
               Gestiona los miembros de tu gimnasio, sus membresías, pagos y asistencia a clases
             </p>
           </div>
-          <Button variant="primary" onClick={() => setShowNewClientModal(true)} data-tour="clients-add">
+          <Button 
+            variant="primary" 
+            onClick={() => setShowNewClientModal(true)} 
+            data-tour="clients-add"
+            className="w-full sm:w-auto whitespace-nowrap"
+          >
             <Plus className="w-4 h-4 mr-2" />
-            Agregar Miembro
+            <span className="hidden sm:inline">Agregar Miembro</span>
+            <span className="sm:hidden">Agregar</span>
           </Button>
         </div>
 
         <Card>
-          <div className="flex flex-col md:flex-row gap-4 mb-6">
+          <div className="flex flex-col gap-3 sm:gap-4 mb-4 sm:mb-6">
             <div className="flex-1">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 w-5 h-5" />
@@ -381,33 +387,37 @@ export default function ClientsPage() {
                   placeholder="Buscar por nombre, email o WhatsApp..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
+                  className="pl-9 sm:pl-10 text-sm"
                   data-tour="clients-search"
                 />
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button
                 variant={filter === 'all' ? 'primary' : 'secondary'}
                 onClick={() => setFilter('all')}
+                className="flex-1 sm:flex-none text-xs sm:text-sm"
               >
                 Todos
               </Button>
               <Button
                 variant={filter === 'active' ? 'primary' : 'secondary'}
                 onClick={() => setFilter('active')}
+                className="flex-1 sm:flex-none text-xs sm:text-sm"
               >
                 Activos
               </Button>
               <Button
                 variant={filter === 'inactive' ? 'primary' : 'secondary'}
                 onClick={() => setFilter('inactive')}
+                className="flex-1 sm:flex-none text-xs sm:text-sm"
               >
                 Inactivos
               </Button>
               <Button
                 variant={filter === 'expired' ? 'primary' : 'secondary'}
                 onClick={() => setFilter('expired')}
+                className="flex-1 sm:flex-none text-xs sm:text-sm"
               >
                 Canceladas
               </Button>
@@ -444,8 +454,9 @@ export default function ClientsPage() {
               </div>
             )
           ) : (
-            <div className="overflow-x-auto">
-              <div className="overflow-x-auto">
+            <>
+              {/* Vista de tabla para desktop */}
+              <div className="hidden lg:block overflow-x-auto">
                 <table className="w-full" data-tour="clients-table">
                   <thead className="bg-gray-100 dark:bg-dark-800">
                     <tr>
