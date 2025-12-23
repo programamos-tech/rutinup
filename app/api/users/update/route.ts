@@ -47,8 +47,8 @@ export async function PUT(request: NextRequest) {
       permissions: permissions || {},
     };
 
-    const { error: accountError } = await supabase
-      .from('gym_accounts')
+    const { error: accountError } = await (supabase
+      .from('gym_accounts') as any)
       .update(updateData)
       .eq('id', userId);
 

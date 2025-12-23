@@ -2375,7 +2375,7 @@ function PaymentModal({
   const suggestedAmount = selectedMembership.type.price;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={modalTitle} maxWidth="4xl">
+    <Modal isOpen={isOpen} onClose={onClose} title={modalTitle} maxWidth="2xl">
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Layout horizontal: 2 columnas */}
         <div className="grid grid-cols-2 gap-4">

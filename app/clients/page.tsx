@@ -971,43 +971,50 @@ function NewMemberModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; onClo
           endDate.setDate(endDate.getDate() + selectedPlan.durationDays);
 
           try {
-            newMembership = await addMembership({
+            await addMembership({
               clientId: newClient.id,
               membershipTypeId: formData.membershipTypeId,
               startDate: startDate,
               endDate: endDate,
               status: 'active',
             });
+            
+            // Buscar la membresía recién creada
+            const createdMembership = memberships.find(
+              m => m.clientId === newClient.id &&
+                   m.membershipTypeId === formData.membershipTypeId &&
+                   m.status === 'active'
+            );
+            
+            // Guardar datos para el modal de pago
+            if (createdMembership) {
+              setNewClientId(newClient.id);
+              setNewMembershipId(createdMembership.id);
+              setNewMembershipTypeId(formData.membershipTypeId);
+              setNewMembershipStartDate(startDate);
+              
+              // Cerrar modal de creación y abrir modal de pago
+              setFormData({
+                name: '',
+                email: '',
+                phone: '',
+                documentId: '',
+                birthDate: '',
+                initialWeight: '',
+                notes: '',
+                membershipTypeId: '',
+                membershipStartDate: '',
+              });
+              setErrors({});
+              setShowPaymentModal(true);
+              return; // No llamar onSuccess todavía, esperar a que se cierre el modal de pago
+            }
           } catch (err: any) {
             setErrors({
               membershipTypeId: err?.message || 'Error al crear la membresía. Por favor intenta de nuevo.'
             });
             setIsLoading(false);
             return;
-          }
-
-          // Guardar datos para el modal de pago
-          if (newMembership) {
-            setNewClientId(newClient.id);
-            setNewMembershipId(newMembership.id);
-            setNewMembershipTypeId(formData.membershipTypeId);
-            setNewMembershipStartDate(startDate);
-            
-            // Cerrar modal de creación y abrir modal de pago
-            setFormData({
-              name: '',
-              email: '',
-              phone: '',
-              documentId: '',
-              birthDate: '',
-              initialWeight: '',
-              notes: '',
-              membershipTypeId: '',
-              membershipStartDate: '',
-            });
-            setErrors({});
-            setShowPaymentModal(true);
-            return; // No llamar onSuccess todavía, esperar a que se cierre el modal de pago
           }
         }
       }
@@ -1706,7 +1713,7 @@ function FirstMonthPaymentModal({
       isOpen={isOpen}
       onClose={handleClose}
       title="Registrar Pago del Primer Mes"
-      maxWidth="4xl"
+      maxWidth="2xl"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Layout horizontal: 2 columnas */}
@@ -2149,7 +2156,7 @@ function PaymentModal({
   const modalTitle = isUpToDate ? "Pago Adelantado" : "Pagar Deuda";
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={modalTitle} maxWidth="4xl">
+    <Modal isOpen={isOpen} onClose={onClose} title={modalTitle} maxWidth="2xl">
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Layout horizontal: 2 columnas */}
         <div className="grid grid-cols-2 gap-4">

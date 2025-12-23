@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
+import { Textarea } from '@/components/ui/Textarea';
 import { useApp } from '@/context/AppContext';
 import { Payment, Client, Membership } from '@/types';
 import { format, subDays, startOfDay } from 'date-fns';

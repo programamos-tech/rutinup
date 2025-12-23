@@ -46,6 +46,7 @@ export interface Database {
           email: string
           name: string
           role: 'admin' | 'receptionist' | 'trainer'
+          permissions: Json
           created_at: string
           updated_at: string
         }

@@ -336,3 +336,29 @@ export interface AuditLog {
   createdAt: Date;
 }
 
+// =====================================================
+// SISTEMA DE CIERRE DE CAJA
+// =====================================================
+
+export interface CashClosing {
+  id: string;
+  gymId: string;
+  userId: string;
+  user?: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  openingTime: Date;
+  closingTime?: Date;
+  openingCash: number;
+  closingCash?: number;
+  totalCashReceived: number;
+  totalTransferReceived: number;
+  totalReceived: number;
+  notes?: string;
+  status: 'open' | 'closed';
+  createdAt: Date;
+  updatedAt: Date;
+}
+

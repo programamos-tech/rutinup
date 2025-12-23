@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { useApp } from '@/context/AppContext';
 import { Product } from '@/types';
+import { formatPrice } from '@/utils/format';
 import { 
   Plus, 
   Search,

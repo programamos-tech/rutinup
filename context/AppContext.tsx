@@ -23,7 +23,8 @@ import {
   Product,
   Invoice,
   InvoiceItem,
-  AuditLog
+  AuditLog,
+  CashClosing
 } from '@/types';
 
 interface AppContextType {
@@ -129,6 +130,10 @@ interface AppContextType {
   addAuditLog: (log: Omit<AuditLog, 'id' | 'createdAt' | 'gymId' | 'userId'>) => Promise<void>;
   getAuditLogs: (filters?: { userId?: string; actionType?: string; entityType?: string; startDate?: Date; endDate?: Date; page?: number; pageSize?: number; searchQuery?: string }) => Promise<{ total: number; page: number; pageSize: number } | undefined>;
   cleanupOldAuditLogs: () => Promise<void>;
+  
+  // Cash Closings
+  cashClosings: CashClosing[];
+  getCashClosings: (startDate?: Date, endDate?: Date) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -160,6 +165,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Sistema de logs/auditoría
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [auditLogsTotal, setAuditLogsTotal] = useState<number>(0);
+  
+  // Sistema de cierres de caja
+  const [cashClosings, setCashClosings] = useState<CashClosing[]>([]);
 
   // Helper function to parse dates from localStorage
   const parseDates = (obj: any): any => {
@@ -2384,16 +2392,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             });
             
             // Detectar cambios en contadores
-            if (oldIncludes.groupClassesCount !== newIncludes.groupClassesCount) {
-              changesList.push(`Clases/mes: ${oldIncludes.groupClassesCount || 0} → ${newIncludes.groupClassesCount || 0}`);
+            if ((oldIncludes as any).groupClassesCount !== (newIncludes as any).groupClassesCount) {
+              changesList.push(`Clases/mes: ${(oldIncludes as any).groupClassesCount || 0} → ${(newIncludes as any).groupClassesCount || 0}`);
             }
-            if (oldIncludes.personalTrainerSessions !== newIncludes.personalTrainerSessions) {
-              changesList.push(`Sesiones entrenador: ${oldIncludes.personalTrainerSessions || 0} → ${newIncludes.personalTrainerSessions || 0}`);
+            if ((oldIncludes as any).personalTrainerSessions !== (newIncludes as any).personalTrainerSessions) {
+              changesList.push(`Sesiones entrenador: ${(oldIncludes as any).personalTrainerSessions || 0} → ${(newIncludes as any).personalTrainerSessions || 0}`);
             }
             
             // Detectar cambios en servicios personalizados
-            const oldCustomServices = Array.isArray(oldIncludes.customServices) ? oldIncludes.customServices : [];
-            const newCustomServices = Array.isArray(newIncludes.customServices) ? newIncludes.customServices : [];
+            const oldCustomServices = Array.isArray((oldIncludes as any).customServices) ? (oldIncludes as any).customServices : [];
+            const newCustomServices = Array.isArray((newIncludes as any).customServices) ? (newIncludes as any).customServices : [];
             if (JSON.stringify(oldCustomServices.sort()) !== JSON.stringify(newCustomServices.sort())) {
               const added = newCustomServices.filter((id: string) => !oldCustomServices.includes(id));
               const removed = oldCustomServices.filter((id: string) => !newCustomServices.includes(id));
@@ -2625,8 +2633,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             },
           });
         }
-        
-        return newMembership;
       }
     } catch (error) {
       console.error('Error adding membership:', error);
@@ -3421,8 +3427,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           createdAt: new Date(item.created_at),
           updatedAt: new Date(item.updated_at),
         }));
+        setCashClosings(closings);
         
-        // setCashClosings(closings); // DEPRECATED
+        setCashClosings(closings);
       }
     } catch (error) {
       console.error('Error loading cash closings:', error);
@@ -4901,7 +4908,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             changes.push(`Nombre: "${oldProduct.name}" → "${productData.name}"`);
           }
           if (priceChanged) {
-            changes.push(`Precio: $${formatPrice(oldProduct.price)} → $${formatPrice(productData.price)}`);
+            changes.push(`Precio: $${formatPrice(oldProduct.price)} → $${formatPrice(productData.price || 0)}`);
           }
           if (stockChanged) {
             const stockDiff = productData.stock - oldProduct.stock;
@@ -5313,6 +5320,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         cleanupOldAuditLogs,
         getPaymentsByDate,
         getPaymentsByYear,
+        cashClosings,
+        getCashClosings,
       }}
     >
       {children}
