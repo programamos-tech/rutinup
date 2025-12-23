@@ -46,6 +46,7 @@ export interface MembershipType {
   price: number;
   durationDays: number;
   description?: string;
+  maxCapacity?: number | null; // Capacidad máxima de clientes. NULL = individual (1), 2 = duo, 3 = trio, etc.
   
   // Servicios incluidos
   includes: {
@@ -117,14 +118,25 @@ export interface SuggestedPlanTemplate {
 
 export interface Membership {
   id: string;
-  clientId: string;
+  clientId?: string | null; // Opcional para membresías grupales
   membershipTypeId: string;
   membershipType?: MembershipType;
   startDate: Date;
   endDate: Date;
   status: 'active' | 'expired' | 'upcoming_expiry';
+  // Para membresías grupales
+  clients?: Client[]; // Clientes asociados a esta membresía
   createdAt: Date;
   updatedAt: Date;
+}
+
+// Relación muchos-a-muchos entre membresías y clientes
+export interface MembershipClient {
+  id: string;
+  membershipId: string;
+  clientId: string;
+  client?: Client;
+  createdAt: Date;
 }
 
 export interface Payment {

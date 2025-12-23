@@ -132,7 +132,7 @@ export default function HomePage() {
               </div>
               <p className="text-xs sm:text-sm text-white mt-4 sm:mt-6 animate-fade-in-up flex flex-wrap items-center justify-center gap-1 sm:gap-2 px-4" style={{ animationDelay: '1s' }}>
                 <Flame className="w-3 sm:w-4 h-3 sm:h-4 text-accent-400 flex-shrink-0" />
-                <span className="text-center">Oferta fundadores: $59.000/mes • Solo 20 cupos • Sin permanencia</span>
+                <span className="text-center">Oferta fundadores: $99.000/mes • Plan Starter • Luego $129.000/mes</span>
               </p>
             </div>
           </div>
@@ -218,15 +218,15 @@ export default function HomePage() {
               Precio único, sin complicaciones
             </h3>
             <p className="text-sm sm:text-base md:text-lg text-gray-600 dark:text-gray-400 px-4">
-              Miembros ilimitados • Todo incluido • Sin sorpresas
+              Planes desde $99.000/mes • Hasta 500 miembros • Todo incluido
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
-            {/* OFERTA FUNDADORES */}
+            {/* PLAN STARTER - OFERTA FUNDADORES */}
             <div 
               onClick={() => {
-                const message = encodeURIComponent('¡Hola! Me interesa la OFERTA FUNDADORES de Rutinup ($59.000/mes). ¿Aún está disponible?');
+                const message = encodeURIComponent('¡Hola! Me interesa el PLAN STARTER de Rutinup ($99.000/mes). ¿Aún está disponible la oferta fundadores?');
                 window.open(`https://wa.me/573002061711?text=${message}`, '_blank');
               }}
               className="bg-white dark:bg-dark-800/50 p-6 sm:p-8 rounded-xl border-2 border-accent-500/50 hover:border-accent-500 hover:shadow-lg hover:shadow-accent-500/30 hover:-translate-y-1 transition-all duration-300 relative flex flex-col scroll-animate cursor-pointer"
@@ -234,21 +234,21 @@ export default function HomePage() {
               <div className="absolute -top-3 sm:-top-4 left-1/2 transform -translate-x-1/2 whitespace-nowrap">
                 <span className="px-3 sm:px-4 py-1 bg-accent-500 text-white text-xs font-bold rounded-full animate-pulse inline-flex items-center gap-1.5">
                   <Flame className="w-3 sm:w-3.5 h-3 sm:h-3.5" />
-                  SOLO 20 CUPOS
+                  OFERTA FUNDADORES
                 </span>
               </div>
               
               <div className="mb-6 pt-2">
                 <div className="inline-block px-3 py-1 bg-accent-500/20 border border-accent-500/50 rounded-full mb-3 sm:mb-4">
-                  <span className="text-accent-500 dark:text-accent-400 text-xs sm:text-sm font-medium">OFERTA FUNDADORES</span>
+                  <span className="text-accent-500 dark:text-accent-400 text-xs sm:text-sm font-medium">PLAN STARTER</span>
                 </div>
                 <p className="text-gray-600 dark:text-gray-400 text-xs sm:text-sm mb-3 sm:mb-4">
-                  Primeros 20 gimnasios
+                  Ideal para empezar
                 </p>
                 <div className="bg-accent-500/10 border border-accent-500/30 rounded-lg p-2.5 sm:p-3 mb-3 sm:mb-4">
                   <p className="text-accent-500 dark:text-accent-400 text-xs font-medium flex items-center gap-1.5 sm:gap-2">
-                    <Clock className="w-3 sm:w-3.5 h-3 sm:h-3.5 flex-shrink-0" />
-                    <span>Por 6 meses, luego $79.000/mes</span>
+                    <Sparkles className="w-3 sm:w-3.5 h-3 sm:h-3.5 flex-shrink-0" />
+                    <span>Precio especial de lanzamiento</span>
                   </p>
                 </div>
               </div>
@@ -256,23 +256,27 @@ export default function HomePage() {
               <ul className="space-y-2.5 sm:space-y-3 mb-6 sm:mb-8 flex-1">
                 <li className="flex items-start gap-2 sm:gap-3">
                   <CheckCircle2 className="w-4 sm:w-5 h-4 sm:h-5 text-accent-500 dark:text-accent-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-sm sm:text-base text-gray-700 dark:text-gray-300">Miembros ilimitados</span>
+                  <span className="text-sm sm:text-base text-gray-700 dark:text-gray-300">Hasta 300 miembros</span>
                 </li>
                 <li className="flex items-start gap-2 sm:gap-3">
                   <CheckCircle2 className="w-4 sm:w-5 h-4 sm:h-5 text-accent-500 dark:text-accent-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-sm sm:text-base text-gray-700 dark:text-gray-300">Gestión de membresías</span>
+                  <span className="text-sm sm:text-base text-gray-700 dark:text-gray-300">3 usuarios colaboradores</span>
                 </li>
                 <li className="flex items-start gap-2 sm:gap-3">
                   <CheckCircle2 className="w-4 sm:w-5 h-4 sm:h-5 text-accent-500 dark:text-accent-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-sm sm:text-base text-gray-700 dark:text-gray-300">Control de clases</span>
+                  <span className="text-sm sm:text-base text-gray-700 dark:text-gray-300">Gestión de membresías y pagos</span>
                 </li>
                 <li className="flex items-start gap-2 sm:gap-3">
                   <CheckCircle2 className="w-4 sm:w-5 h-4 sm:h-5 text-accent-500 dark:text-accent-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-sm sm:text-base text-gray-700 dark:text-gray-300">Cobros inteligentes</span>
+                  <span className="text-sm sm:text-base text-gray-700 dark:text-gray-300">Control de clases y entrenadores</span>
                 </li>
                 <li className="flex items-start gap-2 sm:gap-3">
                   <CheckCircle2 className="w-4 sm:w-5 h-4 sm:h-5 text-accent-500 dark:text-accent-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-sm sm:text-base text-gray-700 dark:text-gray-300">Métricas en tiempo real</span>
+                  <span className="text-sm sm:text-base text-gray-700 dark:text-gray-300">Dashboard y reportes</span>
+                </li>
+                <li className="flex items-start gap-2 sm:gap-3">
+                  <CheckCircle2 className="w-4 sm:w-5 h-4 sm:h-5 text-accent-500 dark:text-accent-400 flex-shrink-0 mt-0.5" />
+                  <span className="text-sm sm:text-base text-gray-700 dark:text-gray-300">Productos y tienda</span>
                 </li>
                 <li className="flex items-start gap-2 sm:gap-3">
                   <CheckCircle2 className="w-4 sm:w-5 h-4 sm:h-5 text-accent-500 dark:text-accent-400 flex-shrink-0 mt-0.5" />
@@ -282,10 +286,10 @@ export default function HomePage() {
 
               <div className="pt-4 sm:pt-6 border-t border-gray-200 dark:border-dark-700/50 mt-auto">
                 <div className="mb-2">
-                  <span className="text-gray-500 dark:text-gray-400 line-through text-lg sm:text-xl">$79.000</span>
+                  <span className="text-gray-500 dark:text-gray-400 line-through text-lg sm:text-xl">$129.000</span>
                 </div>
                 <div className="mb-4 sm:mb-6">
-                  <span className="text-3xl sm:text-4xl font-bold text-accent-500 dark:text-accent-400">$59.000</span>
+                  <span className="text-3xl sm:text-4xl font-bold text-accent-500 dark:text-accent-400">$99.000</span>
                   <span className="text-gray-600 dark:text-gray-400 ml-2 text-sm sm:text-base">COP / mes</span>
                 </div>
                 <Button variant="primary" className="w-full bg-accent-500 hover:bg-accent-600 text-sm sm:text-base">
@@ -294,10 +298,10 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* PLAN MENSUAL */}
+            {/* PLAN PRO */}
             <div 
               onClick={() => {
-                const message = encodeURIComponent('¡Hola! Me interesa el PLAN MENSUAL de Rutinup ($79.000/mes). Necesito más información.');
+                const message = encodeURIComponent('¡Hola! Me interesa el PLAN PRO de Rutinup ($129.000/mes). Necesito más información.');
                 window.open(`https://wa.me/573002061711?text=${message}`, '_blank');
               }}
               className="bg-white dark:bg-dark-800/50 p-6 sm:p-8 rounded-xl border-2 border-primary-500/50 hover:border-primary-500 hover:shadow-lg hover:shadow-primary-500/30 hover:-translate-y-1 transition-all duration-300 relative flex flex-col scroll-animate cursor-pointer"
@@ -310,10 +314,10 @@ export default function HomePage() {
               
               <div className="mb-6 pt-2">
                 <div className="inline-block px-3 py-1 bg-primary-500/20 border border-primary-500/50 rounded-full mb-3 sm:mb-4">
-                  <span className="text-primary-500 dark:text-primary-400 text-xs sm:text-sm font-medium">PLAN MENSUAL</span>
+                  <span className="text-primary-500 dark:text-primary-400 text-xs sm:text-sm font-medium">PLAN PRO</span>
                 </div>
                 <p className="text-gray-600 dark:text-gray-400 text-xs sm:text-sm mb-3 sm:mb-4">
-                  Precio normal
+                  Para gimnasios en crecimiento
                 </p>
                 <div className="bg-primary-500/10 border border-primary-500/30 rounded-lg p-2.5 sm:p-3 mb-3 sm:mb-4">
                   <p className="text-primary-500 dark:text-primary-400 text-xs font-medium flex items-center gap-1.5 sm:gap-2">
@@ -326,23 +330,27 @@ export default function HomePage() {
               <ul className="space-y-2.5 sm:space-y-3 mb-6 sm:mb-8 flex-1">
                 <li className="flex items-start gap-2 sm:gap-3">
                   <CheckCircle2 className="w-4 sm:w-5 h-4 sm:h-5 text-primary-500 dark:text-primary-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-sm sm:text-base text-gray-700 dark:text-gray-300">Miembros ilimitados</span>
+                  <span className="text-sm sm:text-base text-gray-700 dark:text-gray-300">Hasta 500 miembros</span>
                 </li>
                 <li className="flex items-start gap-2 sm:gap-3">
                   <CheckCircle2 className="w-4 sm:w-5 h-4 sm:h-5 text-primary-500 dark:text-primary-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-sm sm:text-base text-gray-700 dark:text-gray-300">Gestión de membresías</span>
+                  <span className="text-sm sm:text-base text-gray-700 dark:text-gray-300">5 usuarios colaboradores</span>
                 </li>
                 <li className="flex items-start gap-2 sm:gap-3">
                   <CheckCircle2 className="w-4 sm:w-5 h-4 sm:h-5 text-primary-500 dark:text-primary-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-sm sm:text-base text-gray-700 dark:text-gray-300">Control de clases</span>
+                  <span className="text-sm sm:text-base text-gray-700 dark:text-gray-300">Gestión de membresías y pagos</span>
                 </li>
                 <li className="flex items-start gap-2 sm:gap-3">
                   <CheckCircle2 className="w-4 sm:w-5 h-4 sm:h-5 text-primary-500 dark:text-primary-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-sm sm:text-base text-gray-700 dark:text-gray-300">Cobros inteligentes</span>
+                  <span className="text-sm sm:text-base text-gray-700 dark:text-gray-300">Control de clases y entrenadores</span>
                 </li>
                 <li className="flex items-start gap-2 sm:gap-3">
                   <CheckCircle2 className="w-4 sm:w-5 h-4 sm:h-5 text-primary-500 dark:text-primary-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-sm sm:text-base text-gray-700 dark:text-gray-300">Métricas en tiempo real</span>
+                  <span className="text-sm sm:text-base text-gray-700 dark:text-gray-300">Dashboard y reportes</span>
+                </li>
+                <li className="flex items-start gap-2 sm:gap-3">
+                  <CheckCircle2 className="w-4 sm:w-5 h-4 sm:h-5 text-primary-500 dark:text-primary-400 flex-shrink-0 mt-0.5" />
+                  <span className="text-sm sm:text-base text-gray-700 dark:text-gray-300">Productos y tienda</span>
                 </li>
                 <li className="flex items-start gap-2 sm:gap-3">
                   <CheckCircle2 className="w-4 sm:w-5 h-4 sm:h-5 text-primary-500 dark:text-primary-400 flex-shrink-0 mt-0.5" />
@@ -353,7 +361,7 @@ export default function HomePage() {
               <div className="pt-4 sm:pt-6 border-t border-gray-200 dark:border-dark-700/50 mt-auto">
                 <div className="mb-6 sm:mb-8 h-6 sm:h-8"></div>
                 <div className="mb-4 sm:mb-6">
-                  <span className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-gray-50">$79.000</span>
+                  <span className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-gray-50">$129.000</span>
                   <span className="text-gray-600 dark:text-gray-400 ml-2 text-sm sm:text-base">COP / mes</span>
                 </div>
                 <Button variant="primary" className="w-full text-sm sm:text-base">
@@ -365,7 +373,7 @@ export default function HomePage() {
             {/* PLAN ANUAL */}
             <div 
               onClick={() => {
-                const message = encodeURIComponent('¡Hola! Me interesa el PLAN ANUAL de Rutinup ($854.400/año). Necesito más información sobre el descuento.');
+                const message = encodeURIComponent('¡Hola! Me interesa el PLAN ANUAL de Rutinup. Necesito más información sobre el descuento.');
                 window.open(`https://wa.me/573002061711?text=${message}`, '_blank');
               }}
               className="bg-white dark:bg-dark-800/50 p-6 sm:p-8 rounded-xl border border-success-500/50 hover:border-success-500 hover:shadow-lg hover:shadow-success-500/20 hover:-translate-y-1 transition-all duration-300 flex flex-col scroll-animate cursor-pointer"
@@ -375,12 +383,12 @@ export default function HomePage() {
                   <span className="text-success-500 dark:text-success-400 text-xs sm:text-sm font-medium">PLAN ANUAL</span>
                 </div>
                 <p className="text-gray-600 dark:text-gray-400 text-xs sm:text-sm mb-3 sm:mb-4">
-                  Ahorra 10% pagando anual
+                  Ahorra 15% pagando anual
                 </p>
                 <div className="bg-success-500/10 border border-success-500/30 rounded-lg p-2.5 sm:p-3 mb-3 sm:mb-4">
                   <p className="text-success-500 dark:text-success-400 text-xs font-medium flex items-center gap-1.5 sm:gap-2">
                     <Wallet className="w-3 sm:w-3.5 h-3 sm:h-3.5 flex-shrink-0" />
-                    <span>Ahorras $94.800 al año</span>
+                    <span>Ahorras $232.200 al año</span>
                   </p>
                 </div>
               </div>
@@ -388,23 +396,27 @@ export default function HomePage() {
               <ul className="space-y-2.5 sm:space-y-3 mb-6 sm:mb-8 flex-1">
                 <li className="flex items-start gap-2 sm:gap-3">
                   <CheckCircle2 className="w-4 sm:w-5 h-4 sm:h-5 text-success-500 dark:text-success-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-sm sm:text-base text-gray-700 dark:text-gray-300">Miembros ilimitados</span>
+                  <span className="text-sm sm:text-base text-gray-700 dark:text-gray-300">Hasta 500 miembros</span>
                 </li>
                 <li className="flex items-start gap-2 sm:gap-3">
                   <CheckCircle2 className="w-4 sm:w-5 h-4 sm:h-5 text-success-500 dark:text-success-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-sm sm:text-base text-gray-700 dark:text-gray-300">Gestión de membresías</span>
+                  <span className="text-sm sm:text-base text-gray-700 dark:text-gray-300">5 usuarios colaboradores</span>
                 </li>
                 <li className="flex items-start gap-2 sm:gap-3">
                   <CheckCircle2 className="w-4 sm:w-5 h-4 sm:h-5 text-success-500 dark:text-success-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-sm sm:text-base text-gray-700 dark:text-gray-300">Control de clases</span>
+                  <span className="text-sm sm:text-base text-gray-700 dark:text-gray-300">Gestión de membresías y pagos</span>
                 </li>
                 <li className="flex items-start gap-2 sm:gap-3">
                   <CheckCircle2 className="w-4 sm:w-5 h-4 sm:h-5 text-success-500 dark:text-success-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-sm sm:text-base text-gray-700 dark:text-gray-300">Cobros inteligentes</span>
+                  <span className="text-sm sm:text-base text-gray-700 dark:text-gray-300">Control de clases y entrenadores</span>
                 </li>
                 <li className="flex items-start gap-2 sm:gap-3">
                   <CheckCircle2 className="w-4 sm:w-5 h-4 sm:h-5 text-success-500 dark:text-success-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-sm sm:text-base text-gray-700 dark:text-gray-300">Métricas en tiempo real</span>
+                  <span className="text-sm sm:text-base text-gray-700 dark:text-gray-300">Dashboard y reportes</span>
+                </li>
+                <li className="flex items-start gap-2 sm:gap-3">
+                  <CheckCircle2 className="w-4 sm:w-5 h-4 sm:h-5 text-success-500 dark:text-success-400 flex-shrink-0 mt-0.5" />
+                  <span className="text-sm sm:text-base text-gray-700 dark:text-gray-300">Productos y tienda</span>
                 </li>
                 <li className="flex items-start gap-2 sm:gap-3">
                   <CheckCircle2 className="w-4 sm:w-5 h-4 sm:h-5 text-success-500 dark:text-success-400 flex-shrink-0 mt-0.5" />
@@ -414,15 +426,15 @@ export default function HomePage() {
 
               <div className="pt-4 sm:pt-6 border-t border-gray-200 dark:border-dark-700/50 mt-auto">
                 <div className="mb-2">
-                  <span className="text-gray-500 dark:text-gray-400 line-through text-lg sm:text-xl">$948.000</span>
-                  <span className="text-success-500 dark:text-success-400 text-xs sm:text-sm ml-2 font-medium">(-10%)</span>
+                  <span className="text-gray-500 dark:text-gray-400 line-through text-lg sm:text-xl">$1.548.000</span>
+                  <span className="text-success-500 dark:text-success-400 text-xs sm:text-sm ml-2 font-medium">(-15%)</span>
                 </div>
                 <div className="mb-2">
-                  <span className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-gray-50">$854.400</span>
+                  <span className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-gray-50">$1.315.800</span>
                   <span className="text-gray-600 dark:text-gray-400 ml-2 text-sm sm:text-base">COP / año</span>
                 </div>
                 <div className="mb-4 sm:mb-6">
-                  <span className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Equivale a $71.200/mes</span>
+                  <span className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Equivale a $109.650/mes</span>
                 </div>
                 <Button variant="primary" className="w-full text-sm sm:text-base">
                   Pagar anual
@@ -449,7 +461,7 @@ export default function HomePage() {
               ¿Listo para transformar tu gimnasio?
             </h3>
             <p className="text-sm sm:text-base md:text-lg text-gray-600 dark:text-gray-400 mb-6 sm:mb-8 max-w-2xl mx-auto px-4">
-              Únete a los primeros 20 gimnasios fundadores y asegura tu precio especial de por vida
+              Únete a los primeros 10 gimnasios fundadores y asegura tu precio especial de por vida
             </p>
             <div className="flex justify-center px-4">
               <Link href="/register" className="w-full sm:w-auto">

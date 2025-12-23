@@ -56,7 +56,8 @@ interface AppContextType {
   
   // Memberships
   memberships: Membership[];
-  addMembership: (membership: Omit<Membership, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  addMembership: (membership: Omit<Membership, 'id' | 'createdAt' | 'updatedAt'> & { clientIds?: string[] }) => Promise<void>;
+  addClientToGroupMembership: (membershipId: string, clientId: string) => Promise<void>;
   updateMembership: (id: string, membership: Partial<Membership>, skipLog?: boolean) => Promise<{ changes: string[]; oldMembership: Membership; updatedMembership: Membership; client: Client | undefined; oldMembershipType: MembershipType | undefined; newMembershipType: MembershipType | undefined; } | undefined>;
   
   // Payments
@@ -297,6 +298,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             name: item.name,
             price: parseFloat(item.price),
             durationDays: item.duration_days,
+            maxCapacity: item.max_capacity || null,
             description: item.description || undefined,
             includes: item.includes || {},
             restrictions: item.restrictions || {},
@@ -844,16 +846,44 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
 
         if (data && data.length > 0) {
-          const loadedMemberships: Membership[] = data.map((item: any) => ({
-            id: item.id,
-            clientId: item.client_id,
-            membershipTypeId: item.membership_type_id,
-            startDate: new Date(item.start_date),
-            endDate: new Date(item.end_date),
-            status: item.status || 'active',
-            createdAt: new Date(item.created_at),
-            updatedAt: new Date(item.updated_at),
-          }));
+          // Cargar clientes asociados para membresías grupales
+          const membershipIds = data.map((item: any) => item.id);
+          const { data: membershipClientsData } = await (supabase.from('membership_clients') as any)
+            .select('membership_id, client_id, clients(id, name, email, phone)')
+            .in('membership_id', membershipIds);
+          
+          // Crear un mapa de membership_id -> clientes
+          const membershipClientsMap = new Map<string, any[]>();
+          if (membershipClientsData) {
+            membershipClientsData.forEach((mc: any) => {
+              if (!membershipClientsMap.has(mc.membership_id)) {
+                membershipClientsMap.set(mc.membership_id, []);
+              }
+              if (mc.clients) {
+                membershipClientsMap.get(mc.membership_id)!.push({
+                  id: mc.clients.id,
+                  name: mc.clients.name,
+                  email: mc.clients.email,
+                  phone: mc.clients.phone,
+                });
+              }
+            });
+          }
+          
+          const loadedMemberships: Membership[] = data.map((item: any) => {
+            const associatedClients = membershipClientsMap.get(item.id) || [];
+            return {
+              id: item.id,
+              clientId: item.client_id,
+              membershipTypeId: item.membership_type_id,
+              startDate: new Date(item.start_date),
+              endDate: new Date(item.end_date),
+              status: item.status || 'active',
+              clients: associatedClients.length > 0 ? associatedClients : undefined,
+              createdAt: new Date(item.created_at),
+              updatedAt: new Date(item.updated_at),
+            };
+          });
           setMemberships(loadedMemberships);
         } else {
           setMemberships([]);
@@ -2243,6 +2273,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           name: typeData.name,
           price: typeData.price,
           duration_days: typeData.durationDays,
+          max_capacity: typeData.maxCapacity || null,
           description: typeData.description || null,
           includes: typeData.includes || {},
           restrictions: typeData.restrictions || {},
@@ -2267,6 +2298,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           name: data.name,
           price: parseFloat(data.price),
           durationDays: data.duration_days,
+          maxCapacity: data.max_capacity || null,
           description: data.description || undefined,
           includes: data.includes || {},
           restrictions: data.restrictions || {},
@@ -2308,6 +2340,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (typeData.name !== undefined) updateData.name = typeData.name;
       if (typeData.price !== undefined) updateData.price = typeData.price;
       if (typeData.durationDays !== undefined) updateData.duration_days = typeData.durationDays;
+      if (typeData.maxCapacity !== undefined) updateData.max_capacity = typeData.maxCapacity || null;
       if (typeData.description !== undefined) updateData.description = typeData.description || null;
       if (typeData.includes !== undefined) updateData.includes = typeData.includes;
       if (typeData.restrictions !== undefined) updateData.restrictions = typeData.restrictions;
@@ -2498,33 +2531,56 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const addMembership = async (membershipData: Omit<Membership, 'id' | 'createdAt' | 'updatedAt'>) => {
+  const addMembership = async (
+    membershipData: Omit<Membership, 'id' | 'createdAt' | 'updatedAt'> & { clientIds?: string[] }
+  ) => {
     if (!gym?.id) {
       console.error('No gym available to create membership');
       return;
     }
 
-    // Validar que el cliente no tenga ya una membresía activa del mismo tipo
-    const existingActiveMembership = memberships.find(
-      m => m.clientId === membershipData.clientId &&
-           m.membershipTypeId === membershipData.membershipTypeId &&
-           m.status === 'active'
-    );
+    const membershipType = membershipTypes.find(mt => mt.id === membershipData.membershipTypeId);
+    if (!membershipType) {
+      throw new Error('Tipo de membresía no encontrado');
+    }
 
-    if (existingActiveMembership) {
-      const membershipType = membershipTypes.find(mt => mt.id === membershipData.membershipTypeId);
-      const errorMessage = `Este cliente ya tiene una membresía activa de tipo "${membershipType?.name || 'este plan'}". ` +
-        `No se pueden tener múltiples membresías del mismo tipo. ` +
-        `Por favor, actualiza o cancela la membresía existente antes de crear una nueva.`;
-      alert(errorMessage);
-      throw new Error(errorMessage);
+    // Determinar si es membresía grupal
+    const isGroupMembership = membershipType.maxCapacity && membershipType.maxCapacity > 1;
+    const clientIds = membershipData.clientIds || (membershipData.clientId ? [membershipData.clientId] : []);
+
+    if (clientIds.length === 0) {
+      throw new Error('Debe seleccionar al menos un cliente');
+    }
+
+    // Validar capacidad máxima
+    if (isGroupMembership && clientIds.length > membershipType.maxCapacity!) {
+      throw new Error(`Este plan permite máximo ${membershipType.maxCapacity} cliente(s). Has seleccionado ${clientIds.length}.`);
+    }
+
+    // Validar que los clientes no tengan ya una membresía activa del mismo tipo
+    for (const clientId of clientIds) {
+      const existingActiveMembership = memberships.find(
+        m => m.clientId === clientId &&
+             m.membershipTypeId === membershipData.membershipTypeId &&
+             m.status === 'active'
+      );
+
+      if (existingActiveMembership) {
+        const client = clients.find(c => c.id === clientId);
+        throw new Error(
+          `El cliente "${client?.name || clientId}" ya tiene una membresía activa de tipo "${membershipType.name}". ` +
+          `No se pueden tener múltiples membresías del mismo tipo. ` +
+          `Por favor, actualiza o cancela la membresía existente antes de crear una nueva.`
+        );
+      }
     }
 
     try {
+      // Crear la membresía (client_id puede ser null para membresías grupales)
       const { data, error } = await (supabase.from('memberships') as any)
         .insert({
           gym_id: gym.id,
-          client_id: membershipData.clientId,
+          client_id: isGroupMembership ? null : clientIds[0], // Solo para membresías individuales
           membership_type_id: membershipData.membershipTypeId,
           start_date: membershipData.startDate.toISOString().split('T')[0],
           end_date: membershipData.endDate.toISOString().split('T')[0],
@@ -2539,10 +2595,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         throw error;
       }
 
+      // Si es membresía grupal, agregar clientes a membership_clients
+      if (isGroupMembership && data) {
+        const { error: clientsError } = await (supabase.from('membership_clients') as any)
+          .insert(
+            clientIds.map(clientId => ({
+              membership_id: data.id,
+              client_id: clientId,
+            }))
+          );
+
+        if (clientsError) {
+          console.error('Error adding clients to membership:', clientsError);
+          // Intentar eliminar la membresía creada
+          await (supabase.from('memberships') as any).delete().eq('id', data.id);
+          throw new Error('Error al asociar clientes a la membresía. Por favor intenta de nuevo.');
+        }
+      }
+
       if (data) {
         const newMembership: Membership = {
           id: data.id,
-          clientId: data.client_id,
+          clientId: isGroupMembership ? null : data.client_id,
           membershipTypeId: data.membership_type_id,
           startDate: new Date(data.start_date),
           endDate: new Date(data.end_date),
@@ -2553,89 +2627,157 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setMemberships([...memberships, newMembership]);
         
         // Registrar log
-        // Consultar directamente la base de datos para obtener el cliente y su fecha de creación
-        const { data: clientData, error: clientError } = await (supabase
-          .from('clients') as any)
-          .select('id, name, email, phone, status, created_at')
-          .eq('id', membershipData.clientId)
-          .single();
-        
-        const membershipType = membershipTypes.find(mt => mt.id === membershipData.membershipTypeId);
-        
-        if (clientError) {
-          console.error('Error fetching client for log:', clientError);
+        // Obtener información de los clientes
+        const clientNames = [];
+        if (isGroupMembership) {
+          const { data: clientsData } = await (supabase.from('clients') as any)
+            .select('id, name, email, phone, status, created_at')
+            .in('id', clientIds);
+          
+          if (clientsData) {
+            clientNames.push(...clientsData.map((c: any) => c.name));
+          }
+        } else if (clientIds[0]) {
+          const { data: clientData } = await (supabase.from('clients') as any)
+            .select('id, name, email, phone, status, created_at')
+            .eq('id', clientIds[0])
+            .single();
+          
+          if (clientData) {
+            clientNames.push(clientData.name);
+          }
         }
         
-        // Verificar si el cliente fue creado recientemente (en los últimos 10 segundos)
-        // Si es así, crear un log combinado: "Cliente nuevo creado e inscrito en X membresía"
-        const clientCreatedAt = clientData?.created_at ? new Date(clientData.created_at) : null;
-        const timeSinceClientCreated = clientCreatedAt ? (new Date().getTime() - clientCreatedAt.getTime()) : null;
-        const clientCreatedRecently = clientCreatedAt && timeSinceClientCreated !== null && timeSinceClientCreated < 10000; // 10 segundos
+        const clientNamesStr = clientNames.join(', ');
+        const description = isGroupMembership 
+          ? `Membresía grupal asignada: ${clientNamesStr} - ${membershipType.name} (${clientIds.length} cliente${clientIds.length > 1 ? 's' : ''})`
+          : `Membresía asignada: ${clientNamesStr || 'Cliente'} - ${membershipType.name}`;
         
-        console.log('📝 Registrando log de membresía:', {
-          clientId: membershipData.clientId,
-          clientName: clientData?.name,
-          membershipTypeName: membershipType?.name,
-          clientCreatedAt: clientCreatedAt,
-          timeSinceClientCreated: timeSinceClientCreated,
-          clientCreatedRecently: clientCreatedRecently,
+        await addAuditLog({
+          actionType: 'create',
+          entityType: 'membership',
+          entityId: newMembership.id,
+          description,
+          metadata: {
+            clientIds: clientIds,
+            clientNames: clientNames,
+            membershipTypeId: membershipData.membershipTypeId,
+            membershipTypeName: membershipType.name,
+            isGroupMembership,
+            startDate: membershipData.startDate,
+            endDate: membershipData.endDate,
+          },
         });
-        
-        if (clientCreatedRecently && clientData) {
-          console.log('✅ Cliente creado recientemente, creando log combinado');
-          // Log combinado: cliente nuevo creado e inscrito en membresía
-          // Verificar si hay un pago asociado a esta membresía (puede que se haya pagado inmediatamente)
-          const recentPayment = payments.find(p => 
-            p.membershipId === newMembership.id && 
-            p.status === 'completed' &&
-            (new Date().getTime() - p.createdAt.getTime()) < 10000 // 10 segundos
-          );
-          
-          const paymentInfo = recentPayment 
-            ? ` - Pagó: $${formatPrice(recentPayment.amount)} (${recentPayment.splitPayment ? 'Mixto' : recentPayment.method === 'cash' ? 'Efectivo' : recentPayment.method === 'transfer' ? 'Transferencia' : recentPayment.method})`
-            : ' - Pendiente de pago';
-          
-          await addAuditLog({
-            actionType: 'create',
-            entityType: 'client',
-            entityId: clientData.id,
-            description: `Cliente nuevo creado: ${clientData.name}${clientData.email ? ` (${clientData.email})` : ''} e inscrito en ${membershipType?.name || 'Plan'}${paymentInfo}`,
-            metadata: {
-              name: clientData.name,
-              email: clientData.email,
-              phone: clientData.phone,
-              status: clientData.status,
-              membershipTypeId: membershipData.membershipTypeId,
-              membershipTypeName: membershipType?.name,
-              membershipId: newMembership.id,
-              startDate: membershipData.startDate,
-              endDate: membershipData.endDate,
-              hasPayment: !!recentPayment,
-              paymentAmount: recentPayment?.amount,
-              paymentMethod: recentPayment?.method,
-            },
-          });
-        } else {
-          console.log('✅ Cliente existente, creando log de membresía asignada');
-          // Log normal de membresía (cliente ya existía)
-          await addAuditLog({
-            actionType: 'create',
-            entityType: 'membership',
-            entityId: newMembership.id,
-            description: `Membresía asignada: ${clientData?.name || 'Cliente'} - ${membershipType?.name || 'Plan'}`,
-            metadata: {
-              clientId: membershipData.clientId,
-              clientName: clientData?.name,
-              membershipTypeId: membershipData.membershipTypeId,
-              membershipTypeName: membershipType?.name,
-              startDate: membershipData.startDate,
-              endDate: membershipData.endDate,
-            },
-          });
-        }
       }
     } catch (error) {
       console.error('Error adding membership:', error);
+      throw error;
+    }
+  };
+
+  // Agregar cliente a una membresía grupal existente
+  const addClientToGroupMembership = async (membershipId: string, clientId: string) => {
+    if (!gym?.id) {
+      throw new Error('No gym available');
+    }
+
+    try {
+      // Verificar que la membresía existe y es grupal
+      const membership = memberships.find(m => m.id === membershipId);
+      if (!membership) {
+        throw new Error('Membresía no encontrada');
+      }
+
+      const membershipType = membershipTypes.find(mt => mt.id === membership.membershipTypeId);
+      if (!membershipType || !membershipType.maxCapacity || membershipType.maxCapacity <= 1) {
+        throw new Error('Esta membresía no es grupal');
+      }
+
+      // Verificar que el cliente no esté ya en esta membresía
+      const { data: existingClient } = await (supabase.from('membership_clients') as any)
+        .select('id')
+        .eq('membership_id', membershipId)
+        .eq('client_id', clientId)
+        .maybeSingle();
+
+      if (existingClient) {
+        throw new Error('Este cliente ya está asociado a esta membresía');
+      }
+
+      // Agregar cliente a la membresía
+      const { error } = await (supabase.from('membership_clients') as any)
+        .insert({
+          membership_id: membershipId,
+          client_id: clientId,
+        });
+
+      if (error) {
+        console.error('Error adding client to membership:', error);
+        throw new Error(error.message || 'Error al agregar cliente a la membresía');
+      }
+
+      // Recargar membresías para actualizar la lista de clientes
+      const { data: membershipData } = await (supabase.from('memberships') as any)
+        .select('*')
+        .eq('gym_id', gym.id)
+        .order('created_at', { ascending: false });
+
+      if (membershipData && membershipData.length > 0) {
+        const membershipIds = membershipData.map((item: any) => item.id);
+        const { data: membershipClientsData } = await (supabase.from('membership_clients') as any)
+          .select('membership_id, client_id, clients(id, name, email, phone)')
+          .in('membership_id', membershipIds);
+
+        const membershipClientsMap = new Map<string, any[]>();
+        if (membershipClientsData) {
+          membershipClientsData.forEach((mc: any) => {
+            if (!membershipClientsMap.has(mc.membership_id)) {
+              membershipClientsMap.set(mc.membership_id, []);
+            }
+            if (mc.clients) {
+              membershipClientsMap.get(mc.membership_id)!.push({
+                id: mc.clients.id,
+                name: mc.clients.name,
+                email: mc.clients.email,
+                phone: mc.clients.phone,
+              });
+            }
+          });
+        }
+
+        const loadedMemberships: Membership[] = membershipData.map((item: any) => {
+          const associatedClients = membershipClientsMap.get(item.id) || [];
+          return {
+            id: item.id,
+            clientId: item.client_id,
+            membershipTypeId: item.membership_type_id,
+            startDate: new Date(item.start_date),
+            endDate: new Date(item.end_date),
+            status: item.status || 'active',
+            clients: associatedClients.length > 0 ? associatedClients : undefined,
+            createdAt: new Date(item.created_at),
+            updatedAt: new Date(item.updated_at),
+          };
+        });
+        setMemberships(loadedMemberships);
+      }
+
+      // Registrar log
+      const client = clients.find(c => c.id === clientId);
+      await addAuditLog({
+        actionType: 'update',
+        entityType: 'membership',
+        entityId: membershipId,
+        description: `Cliente "${client?.name || clientId}" agregado a membresía grupal "${membershipType.name}"`,
+        metadata: {
+          membershipId,
+          clientId,
+          clientName: client?.name,
+          membershipTypeName: membershipType.name,
+        },
+      });
+    } catch (error: any) {
+      console.error('Error adding client to group membership:', error);
       throw error;
     }
   };
@@ -5273,6 +5415,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         deleteGymCustomService,
         memberships,
         addMembership,
+        addClientToGroupMembership,
         updateMembership,
         payments,
         addPayment,

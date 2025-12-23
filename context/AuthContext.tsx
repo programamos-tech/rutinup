@@ -376,9 +376,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             .from('gym_accounts')
             .select('id, gym_id, email, name, role')
             .eq('id', data.user.id)
-            .single();
+            .maybeSingle(); // Usar maybeSingle() en lugar de single() para evitar PGRST116
 
-          if (!profileError && profileData) {
+          // maybeSingle() retorna null si no hay resultados, no lanza error
+          if (profileData && !profileError) {
             const profile = profileData as any as UserProfile;
             if (profile && profile.gym_id) {
               setUserProfile(profile);
@@ -386,8 +387,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               break;
             }
           }
+          
+          // Si hay error y no es PGRST116, loguearlo pero continuar
+          if (profileError && profileError.code !== 'PGRST116') {
+            console.warn('Error al cargar perfil (intento', attempt + 1, '):', profileError);
+          }
         } catch (error) {
           // Continuar intentando
+          console.warn('Excepción al cargar perfil (intento', attempt + 1, '):', error);
         }
 
         if (attempt < maxAttempts - 1) {

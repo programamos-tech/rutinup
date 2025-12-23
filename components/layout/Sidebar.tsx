@@ -13,7 +13,9 @@ import {
   UserCheck,
   Receipt,
   ShoppingBag,
-  Beaker
+  Beaker,
+  Ticket,
+  Box
 } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Tooltip } from '@/components/ui/Tooltip';
@@ -22,11 +24,11 @@ import { useAuth } from '@/context/AuthContext';
 
 const menuItems = [
   { href: '/dashboard', label: 'Dashboard', icon: CreditCard, permission: 'dashboard' },
-  { href: '/memberships', label: 'Membresías', icon: Package, permission: 'memberships' },
+  { href: '/memberships', label: 'Membresías', icon: Ticket, permission: 'memberships' },
   { href: '/clients', label: 'Miembros', icon: Users, permission: 'clients' },
   { href: '/trainers', label: 'Entrenadores', icon: UserCheck, permission: 'trainers' },
   { href: '/classes', label: 'Clases', icon: Calendar, permission: 'classes' },
-  { href: '/products', label: 'Productos', icon: Package, permission: 'products' },
+  { href: '/products', label: 'Productos', icon: Box, permission: 'products' },
   { href: '/tienda', label: 'Tienda', icon: ShoppingBag, permission: 'tienda' },
   { href: '/logs', label: 'Logs', icon: Receipt, permission: 'logs', adminOnly: true },
   { href: '/settings', label: 'Configuración', icon: Settings, permission: 'settings' },

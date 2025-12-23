@@ -12,11 +12,12 @@ import { Textarea } from '@/components/ui/Textarea';
 import { Select } from '@/components/ui/Select';
 import { useApp } from '@/context/AppContext';
 import { format, addMonths, parseISO } from 'date-fns';
-import { Search, Plus, Eye, Edit, Trash2, Clock, AlertCircle, ArrowRight, CreditCard, CheckCircle, Phone, X, Calendar, Users } from 'lucide-react';
+import { Search, Plus, Eye, Edit, Trash2, Clock, AlertCircle, ArrowRight, CreditCard, CheckCircle, Phone, X, Calendar, Users, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { Client, Payment, Membership } from '@/types';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { calculatePaymentStatus } from '@/utils/paymentCalculations';
+import { calculatePaymentStatus, getPeriodLabels } from '@/utils/paymentCalculations';
 
 export default function ClientsPage() {
   const router = useRouter();
@@ -124,6 +125,11 @@ export default function ClientsPage() {
     
     // Si el cliente está activo, verificar membresías
     const clientMemberships = memberships.filter((m) => m.clientId === clientId);
+    // Si no tiene membresías pero el cliente está activo, mostrar como activo (sin membresía)
+    if (clientMemberships.length === 0 && client?.status === 'active') {
+      return { status: 'active', label: 'Activo (sin membresía)' };
+    }
+    // Si no tiene membresías y el cliente no está activo explícitamente, mostrar como inactivo
     if (clientMemberships.length === 0) return { status: 'inactive', label: 'Inactivo' };
     
     const hasActive = clientMemberships.some((m) => {
@@ -162,9 +168,17 @@ export default function ClientsPage() {
   const getClientActiveMemberships = (clientId: string) => {
     return memberships.filter((m) => {
       // Solo considerar membresías con estado 'active' y que no hayan vencido
-      if (m.clientId !== clientId || m.status !== 'active') return false;
+      if (m.status !== 'active') return false;
       const endDate = new Date(m.endDate);
-      return endDate >= new Date();
+      if (endDate < new Date()) return false;
+      
+      // Para membresías individuales, verificar clientId
+      if (m.clientId === clientId) return true;
+      
+      // Para membresías grupales, verificar si el cliente está en la lista de clients
+      if (m.clients && m.clients.some(c => c.id === clientId)) return true;
+      
+      return false;
     });
   };
 
@@ -269,6 +283,103 @@ export default function ClientsPage() {
     return type?.name || 'Membresía';
   };
 
+  const exportToExcel = () => {
+    // Preparar datos para exportar
+    const excelData = filteredClients.map((client) => {
+      const status = getClientStatus(client.id);
+      const membership = getClientMembership(client.id);
+      const paymentStatus = getPaymentStatus(client.id);
+      const lastPayment = getLastPayment(client.id);
+      const daysLeft = getDaysUntilExpiration(client.id);
+      
+      // Estado de pago
+      let paymentStatusText = 'Sin membresía';
+      if (paymentStatus) {
+        if (paymentStatus.monthsOwed > 0) {
+          if (paymentStatus.daysOwed >= 365) {
+            const years = Math.floor(paymentStatus.daysOwed / 365);
+            const remainingDays = paymentStatus.daysOwed % 365;
+            if (remainingDays > 0) {
+              paymentStatusText = `Debe ${years} año${years > 1 ? 's' : ''} y ${remainingDays} días`;
+            } else {
+              paymentStatusText = `Debe ${years} año${years > 1 ? 's' : ''}`;
+            }
+          } else {
+            paymentStatusText = `Debe ${paymentStatus.daysOwed} días`;
+          }
+        } else if (paymentStatus.advancePaidMonths > 0) {
+          paymentStatusText = `${paymentStatus.advancePaidMonths} ${paymentStatus.periodLabel} pagado(s) por adelantado`;
+        } else {
+          paymentStatusText = 'Al día';
+        }
+      } else if (membership) {
+        paymentStatusText = 'Sin pago';
+      }
+
+      // Fecha de último pago
+      const lastPaymentDate = lastPayment 
+        ? format(new Date(lastPayment.paymentDate), 'dd/MM/yyyy')
+        : 'N/A';
+
+      // Fecha de vencimiento
+      let expirationDate = 'N/A';
+      if (membership) {
+        expirationDate = format(new Date(membership.endDate), 'dd/MM/yyyy');
+      }
+
+      // Días hasta vencimiento
+      let daysUntilExpiration = 'N/A';
+      if (daysLeft !== null) {
+        if (daysLeft < 0) {
+          daysUntilExpiration = `Vencida (${Math.abs(daysLeft)} días)`;
+        } else {
+          daysUntilExpiration = `${daysLeft} días`;
+        }
+      }
+
+      return {
+        'Nombre': client.name,
+        'Email': client.email || 'N/A',
+        'Teléfono': client.phone || 'N/A',
+        'Documento': client.documentId || 'N/A',
+        'Estado': status.label,
+        'Estado de Pago': paymentStatusText,
+        'Último Pago': lastPaymentDate,
+        'Membresía': membership ? getMembershipTypeName(membership.membershipTypeId) : 'Sin membresía',
+        'Fecha Vencimiento': expirationDate,
+        'Días hasta Vencimiento': daysUntilExpiration,
+        'Monto Adeudado': paymentStatus?.amountOwed || 0,
+      };
+    });
+
+    // Crear workbook y worksheet
+    const worksheet = XLSX.utils.json_to_sheet(excelData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Miembros');
+
+    // Ajustar ancho de columnas
+    const columnWidths = [
+      { wch: 25 }, // Nombre
+      { wch: 30 }, // Email
+      { wch: 15 }, // Teléfono
+      { wch: 15 }, // Documento
+      { wch: 15 }, // Estado
+      { wch: 30 }, // Estado de Pago
+      { wch: 15 }, // Último Pago
+      { wch: 25 }, // Membresía
+      { wch: 18 }, // Fecha Vencimiento
+      { wch: 20 }, // Días hasta Vencimiento
+      { wch: 15 }, // Monto Adeudado
+    ];
+    worksheet['!cols'] = columnWidths;
+
+    // Generar nombre de archivo con fecha
+    const fileName = `miembros_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
+
+    // Descargar archivo
+    XLSX.writeFile(workbook, fileName);
+  };
+
   // Calcular meses adelantados pagados (meses futuros que ya están pagados)
   const calculateAdvancePaidMonths = (clientId: string, membershipId: string) => {
     const today = new Date();
@@ -309,6 +420,7 @@ export default function ClientsPage() {
     let totalAmountOwed = 0;
     let totalAdvancePaidMonths = 0;
     let totalMonthsPaid = 0;
+    let totalDaysOwed = 0;
     const membershipsWithDebt: Array<{ membership: Membership; monthsOwed: number; amountOwed: number }> = [];
 
     activeMemberships.forEach(membership => {
@@ -333,6 +445,7 @@ export default function ClientsPage() {
       totalAmountOwed += paymentStatus.totalOwed;
       totalAdvancePaidMonths += advancePaidMonths;
       totalMonthsPaid += paymentStatus.monthsPaid;
+      totalDaysOwed += paymentStatus.daysOwed || (paymentStatus.monthsOwed * membershipType.durationDays);
 
       if (paymentStatus.monthsOwed > 0) {
         membershipsWithDebt.push({
@@ -343,15 +456,34 @@ export default function ClientsPage() {
       }
     });
 
+    // Obtener el tipo de membresía principal para determinar las etiquetas
+    const primaryMembershipType = activeMemberships[0] ? membershipTypes.find(mt => mt.id === activeMemberships[0].membershipTypeId) : null;
+    const durationDays = primaryMembershipType?.durationDays || 30;
+    const { singular, plural } = getPeriodLabels(durationDays);
+    const periodLabel = totalMonthsOwed === 1 ? singular : plural;
+
+    // Determinar etiqueta para días adeudados
+    let daysOwedLabel = 'días';
+    if (totalDaysOwed >= 365) {
+      daysOwedLabel = Math.floor(totalDaysOwed / 365) === 1 ? 'año' : 'años';
+    } else if (totalDaysOwed === 1) {
+      daysOwedLabel = 'día';
+    }
+
     return {
       monthsOwed: totalMonthsOwed,
       amountOwed: totalAmountOwed,
-      membershipType: activeMemberships[0] ? membershipTypes.find(mt => mt.id === activeMemberships[0].membershipTypeId) : null,
+      membershipType: primaryMembershipType,
       membership: activeMemberships[0],
       advancePaidMonths: totalAdvancePaidMonths,
       monthsPaid: totalMonthsPaid,
       totalMemberships: activeMemberships.length,
       membershipsWithDebt: membershipsWithDebt.length,
+      periodLabel,
+      periodLabelSingular: singular,
+      periodLabelPlural: plural,
+      daysOwed: totalDaysOwed,
+      daysOwedLabel,
     };
   };
 
@@ -365,10 +497,16 @@ export default function ClientsPage() {
               Gestiona los miembros de tu gimnasio, sus membresías, pagos y asistencia a clases
             </p>
           </div>
-          <Button variant="primary" onClick={() => setShowNewClientModal(true)} data-tour="clients-add">
-            <Plus className="w-4 h-4 mr-2" />
-            Agregar Miembro
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={exportToExcel}>
+              <Download className="w-4 h-4 mr-2" />
+              Exportar Excel
+            </Button>
+            <Button variant="primary" onClick={() => setShowNewClientModal(true)} data-tour="clients-add">
+              <Plus className="w-4 h-4 mr-2" />
+              Agregar Miembro
+            </Button>
+          </div>
         </div>
 
         <Card>
@@ -461,7 +599,7 @@ export default function ClientsPage() {
                       <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">
                         Último Pago
                       </th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">
+                      <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700 dark:text-gray-300">
                         Estado de Pago
                       </th>
                       <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">
@@ -482,6 +620,19 @@ export default function ClientsPage() {
                       const isUrgent = daysLeft !== null && daysLeft <= 7 && daysLeft >= 0;
                       const isExpired = daysLeft !== null && daysLeft < 0;
                       const noPaymentThisMonth = !hasPaidThisMonth(client.id) && membership;
+                      
+                      // Obtener el tipo de membresía para determinar el texto correcto
+                      const membershipType = membership ? membershipTypes.find(mt => mt.id === membership.membershipTypeId) : null;
+                      const durationDays = membershipType?.durationDays || 30;
+                      const noPaymentText = durationDays === 1 
+                        ? 'Sin pago hoy' 
+                        : durationDays < 7 
+                        ? 'Sin pago' 
+                        : durationDays === 7 
+                        ? 'Sin pago esta semana' 
+                        : durationDays < 30 
+                        ? 'Sin pago' 
+                        : 'Sin pago este mes';
 
                       const hasCriticalDebt = paymentStatus && paymentStatus.monthsOwed >= 2;
 
@@ -502,7 +653,36 @@ export default function ClientsPage() {
                                 </span>
                               </div>
                               <div className="ml-4">
-                                <div className="text-sm font-semibold text-gray-900 dark:text-gray-50">{client.name}</div>
+                                <div className="flex items-center gap-2">
+                                  <div className="text-sm font-semibold text-gray-900 dark:text-gray-50">{client.name}</div>
+                                  {/* Icono de plan grupal */}
+                                  {(() => {
+                                    const activeMemberships = getClientActiveMemberships(client.id);
+                                    const groupMembership = activeMemberships.find(m => {
+                                      const mt = membershipTypes.find(mt => mt.id === m.membershipTypeId);
+                                      return mt?.maxCapacity && mt.maxCapacity > 1;
+                                    });
+                                    
+                                    if (groupMembership) {
+                                      const mt = membershipTypes.find(mt => mt.id === groupMembership.membershipTypeId);
+                                      const maxCapacity = mt?.maxCapacity || 0;
+                                      const currentClients = groupMembership.clients?.length || 0;
+                                      const isFull = currentClients >= maxCapacity;
+                                      
+                                      return (
+                                        <Tooltip content={isFull ? `Plan grupal completo (${currentClients}/${maxCapacity})` : `Plan grupal - Falta agregar ${maxCapacity - currentClients} persona(s) (${currentClients}/${maxCapacity})`}>
+                                          <div className={`flex items-center gap-1 ${isFull ? 'text-success-400' : 'text-warning-400'}`}>
+                                            <Users className="w-4 h-4" />
+                                            {!isFull && (
+                                              <span className="text-xs font-medium">{maxCapacity - currentClients}</span>
+                                            )}
+                                          </div>
+                                        </Tooltip>
+                                      );
+                                    }
+                                    return null;
+                                  })()}
+                                </div>
                                 {isUrgent && (
                                   <div className="flex items-center gap-1 mt-1">
                                     <AlertCircle className="w-3 h-3 text-warning-400" />
@@ -523,7 +703,7 @@ export default function ClientsPage() {
                                   <div className="flex items-center gap-1 mt-1">
                                     <AlertCircle className="w-3 h-3 text-warning-500/70" />
                                     <span className="text-xs text-warning-500/70 font-medium">
-                                      Sin pago este mes
+                                      {noPaymentText}
                                     </span>
                                   </div>
                                 )}
@@ -615,13 +795,27 @@ export default function ClientsPage() {
                               <span className="text-sm text-gray-500">Sin pagos</span>
                             )}
                           </td>
-                          <td className="px-6 py-4">
+                          <td className="px-6 py-4 text-center">
                             {paymentStatus ? (
                               paymentStatus.monthsOwed > 0 ? (
                                 <div className="flex flex-col items-center">
                                   <Badge variant={paymentStatus.monthsOwed >= 2 ? 'danger' : 'warning'}>
                                     {paymentStatus.monthsOwed >= 2 && <AlertCircle className="w-3 h-3 mr-1" />}
-                                    Debe {paymentStatus.monthsOwed} {paymentStatus.monthsOwed === 1 ? 'mes' : 'meses'}
+                                    {(() => {
+                                      if (paymentStatus.daysOwed !== undefined && paymentStatus.daysOwed > 0) {
+                                        if (paymentStatus.daysOwed >= 365) {
+                                          const years = Math.floor(paymentStatus.daysOwed / 365);
+                                          const remainingDays = paymentStatus.daysOwed % 365;
+                                          if (remainingDays === 0) {
+                                            return `Debe ${years} ${years === 1 ? 'año' : 'años'}`;
+                                          } else {
+                                            return `Debe ${years} ${years === 1 ? 'año' : 'años'} y ${remainingDays} ${remainingDays === 1 ? 'día' : 'días'}`;
+                                          }
+                                        }
+                                        return `Debe ${paymentStatus.daysOwed} ${paymentStatus.daysOwed === 1 ? 'día' : 'días'}`;
+                                      }
+                                      return `Debe ${paymentStatus.monthsOwed} ${paymentStatus.periodLabel || (paymentStatus.monthsOwed === 1 ? 'mes' : 'meses')}`;
+                                    })()}
                                     {paymentStatus.membershipsWithDebt > 1 && (
                                       <span className="ml-1 text-xs">
                                         (de {paymentStatus.membershipsWithDebt} {paymentStatus.membershipsWithDebt === 1 ? 'membresía' : 'membresías'})
@@ -637,16 +831,21 @@ export default function ClientsPage() {
                                   </div>
                                 </div>
                               ) : (
-                                <div className="flex flex-col items-center">
+                                <div className="flex flex-col items-center justify-center">
                                   <Badge variant="success">
                                     <CheckCircle className="w-3 h-3 mr-1" />
                                     Al día
                                   </Badge>
-                                  {paymentStatus.advancePaidMonths > 0 && (
-                                    <div className="mt-1 text-xs text-success-400 font-medium">
-                                      {paymentStatus.advancePaidMonths} {paymentStatus.advancePaidMonths === 1 ? 'mes' : 'meses'} pagado{paymentStatus.advancePaidMonths > 1 ? 's' : ''}
-                                    </div>
-                                  )}
+                                  {paymentStatus.advancePaidMonths > 0 && (() => {
+                                    const durationDays = paymentStatus.membershipType?.durationDays || 30;
+                                    const { singular, plural } = getPeriodLabels(durationDays);
+                                    const label = paymentStatus.advancePaidMonths === 1 ? singular : plural;
+                                    return (
+                                      <div className="mt-1 text-xs text-success-400 font-medium">
+                                        {paymentStatus.advancePaidMonths} {label} pagado{paymentStatus.advancePaidMonths > 1 ? 's' : ''}
+                                      </div>
+                                    );
+                                  })()}
                                   {paymentStatus.totalMemberships > 1 && (
                                     <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                       {paymentStatus.totalMemberships} {paymentStatus.totalMemberships === 1 ? 'membresía' : 'membresías'}
@@ -655,7 +854,9 @@ export default function ClientsPage() {
                                 </div>
                               )
                             ) : (
-                              <span className="text-sm text-gray-500">-</span>
+                              <div className="flex justify-center">
+                                <span className="text-sm text-gray-500">-</span>
+                              </div>
                             )}
                           </td>
                           <td className="px-6 py-4">
@@ -889,7 +1090,7 @@ export default function ClientsPage() {
 
 // Modal de Nuevo Miembro
 function NewMemberModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; onClose: () => void; onSuccess: () => void }) {
-  const { addClient, addMembership, addPayment, gym, membershipTypes, memberships } = useApp();
+  const { addClient, addMembership, addPayment, gym, membershipTypes, memberships, clients } = useApp();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -908,22 +1109,49 @@ function NewMemberModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; onClo
   const [newMembershipId, setNewMembershipId] = useState<string | null>(null);
   const [newMembershipTypeId, setNewMembershipTypeId] = useState<string | null>(null);
   const [newMembershipStartDate, setNewMembershipStartDate] = useState<Date | null>(null);
+  
+  // Para planes grupales: clientes seleccionados
+  const [selectedClientIdsForGroup, setSelectedClientIdsForGroup] = useState<string[]>([]);
+  const [clientsToCreate, setClientsToCreate] = useState<Array<{name: string; email?: string; phone?: string}>>([]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const newErrors: Record<string, string> = {};
+    
+    const selectedPlan = formData.membershipTypeId 
+      ? membershipTypes.find(t => t.id === formData.membershipTypeId)
+      : null;
+    const isGroupPlan = selectedPlan?.maxCapacity && selectedPlan.maxCapacity > 1;
 
-    if (!formData.name.trim()) {
-      newErrors.name = 'El nombre es requerido';
+    // Si no es plan grupal, el nombre y teléfono son requeridos
+    // Si es plan grupal, al menos debe haber un cliente seleccionado o creado
+    if (!isGroupPlan) {
+      if (!formData.name.trim()) {
+        newErrors.name = 'El nombre es requerido';
+      }
+      if (!formData.phone.trim()) {
+        newErrors.phone = 'El WhatsApp es requerido';
+      }
+    } else {
+      // Para planes grupales, validar que haya al menos un cliente
+      const totalClients = selectedClientIdsForGroup.length + clientsToCreate.length + (formData.name ? 1 : 0);
+      if (totalClients === 0) {
+        newErrors.membershipTypeId = 'Debes seleccionar o crear al menos un cliente para este plan grupal';
+      }
+      // Validar que los clientes a crear tengan nombre
+      clientsToCreate.forEach((clientToCreate, index) => {
+        if (!clientToCreate.name.trim()) {
+          newErrors[`clientToCreate_${index}`] = 'El nombre del cliente es requerido';
+        }
+      });
     }
-    if (!formData.phone.trim()) {
-      newErrors.phone = 'El WhatsApp es requerido';
+    
+    // Validar membresía solo si se selecciona un plan
+    if (formData.membershipTypeId && !formData.membershipStartDate) {
+      newErrors.membershipStartDate = 'Debes seleccionar una fecha de inicio si asignas una membresía';
     }
-    if (!formData.membershipTypeId) {
-      newErrors.membershipTypeId = 'Debes seleccionar un plan de membresía';
-    }
-    if (!formData.membershipStartDate) {
-      newErrors.membershipStartDate = 'Debes seleccionar una fecha de inicio';
+    if (!formData.membershipTypeId && formData.membershipStartDate) {
+      newErrors.membershipTypeId = 'Debes seleccionar un plan de membresía si ingresas una fecha de inicio';
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -933,81 +1161,132 @@ function NewMemberModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; onClo
 
     setIsLoading(true);
     try {
-      // Crear el cliente
-      const newClient = await addClient({
-        gymId: gym?.id || '',
-        name: formData.name,
-        email: formData.email || undefined,
-        phone: formData.phone || undefined,
-        documentId: formData.documentId || undefined,
-        birthDate: formData.birthDate ? new Date(formData.birthDate) : undefined,
-        initialWeight: formData.initialWeight ? parseFloat(formData.initialWeight) : undefined,
-        notes: formData.notes || undefined,
-        status: 'active',
-      });
+      const selectedPlan = formData.membershipTypeId 
+        ? membershipTypes.find(t => t.id === formData.membershipTypeId)
+        : null;
+      
+      const isGroupPlan = selectedPlan?.maxCapacity && selectedPlan.maxCapacity > 1;
+      const maxCapacity = selectedPlan?.maxCapacity || 1;
+      
+      // Si es plan grupal, validar que se hayan seleccionado clientes
+      if (isGroupPlan && formData.membershipTypeId) {
+        const totalClients = selectedClientIdsForGroup.length + clientsToCreate.length + (formData.name ? 1 : 0);
+        if (totalClients === 0) {
+          setErrors({ membershipTypeId: 'Debes seleccionar o crear al menos un cliente para este plan grupal' });
+          setIsLoading(false);
+          return;
+        }
+        if (totalClients > maxCapacity) {
+          setErrors({ membershipTypeId: `Este plan permite máximo ${maxCapacity} cliente(s). Has seleccionado/creado ${totalClients}.` });
+          setIsLoading(false);
+          return;
+        }
+      }
 
-      // Crear membresía para el cliente
+      // Crear el cliente principal (si se llenaron los datos)
+      let newClient: Client | null = null;
+      if (formData.name.trim()) {
+        // Para planes grupales, el teléfono no es requerido
+        if (!isGroupPlan && !formData.phone.trim()) {
+          setErrors({ phone: 'El WhatsApp es requerido' });
+          setIsLoading(false);
+          return;
+        }
+        
+        newClient = await addClient({
+          gymId: gym?.id || '',
+          name: formData.name,
+          email: formData.email || undefined,
+          phone: formData.phone || undefined,
+          documentId: formData.documentId || undefined,
+          birthDate: formData.birthDate ? new Date(formData.birthDate) : undefined,
+          initialWeight: formData.initialWeight ? parseFloat(formData.initialWeight) : undefined,
+          notes: formData.notes || undefined,
+          status: 'active',
+        });
+        
+        if (!newClient) {
+          setErrors({ name: 'Error al crear el cliente. Por favor intenta de nuevo.' });
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // Si es plan grupal, crear los clientes adicionales primero
+      const allClientIds: string[] = [];
+      if (newClient) {
+        allClientIds.push(newClient.id);
+      }
+      
+      // Agregar clientes seleccionados existentes
+      allClientIds.push(...selectedClientIdsForGroup);
+      
+      // Crear clientes nuevos si hay
+      for (const clientToCreate of clientsToCreate) {
+        const createdClient = await addClient({
+          gymId: gym?.id || '',
+          name: clientToCreate.name,
+          email: clientToCreate.email || undefined,
+          phone: clientToCreate.phone || undefined,
+          status: 'active',
+        });
+        if (createdClient) {
+          allClientIds.push(createdClient.id);
+        }
+      }
+
+      // Crear membresía para el cliente/clientes
       let newMembership = null;
-      if (formData.membershipTypeId && formData.membershipStartDate && newClient) {
-        const selectedPlan = membershipTypes.find(t => t.id === formData.membershipTypeId);
+      if (formData.membershipTypeId && formData.membershipStartDate && allClientIds.length > 0) {
         if (selectedPlan) {
-          // Validar que no tenga ya una membresía activa del mismo tipo (aunque es nuevo, por si acaso)
-          const existingMembership = memberships.find(
-            m => m.clientId === newClient.id &&
-                 m.membershipTypeId === formData.membershipTypeId &&
-                 m.status === 'active'
-          );
-
-          if (existingMembership) {
-            setErrors({
-              membershipTypeId: `Este cliente ya tiene una membresía activa de tipo "${selectedPlan.name}". No se pueden tener múltiples membresías del mismo tipo.`
-            });
-            setIsLoading(false);
-            return;
-          }
-
           const startDate = new Date(formData.membershipStartDate);
           const endDate = new Date(startDate);
           endDate.setDate(endDate.getDate() + selectedPlan.durationDays);
 
           try {
             await addMembership({
-              clientId: newClient.id,
+              clientId: isGroupPlan ? null : allClientIds[0], // null para planes grupales
+              clientIds: isGroupPlan ? allClientIds : undefined,
               membershipTypeId: formData.membershipTypeId,
               startDate: startDate,
               endDate: endDate,
               status: 'active',
             });
             
-            // Buscar la membresía recién creada
-            const createdMembership = memberships.find(
-              m => m.clientId === newClient.id &&
-                   m.membershipTypeId === formData.membershipTypeId &&
-                   m.status === 'active'
-            );
-            
-            // Guardar datos para el modal de pago
-            if (createdMembership) {
-              setNewClientId(newClient.id);
-              setNewMembershipId(createdMembership.id);
-              setNewMembershipTypeId(formData.membershipTypeId);
-              setNewMembershipStartDate(startDate);
+            // Buscar la membresía recién creada (para planes individuales)
+            // Para planes grupales, no abrimos modal de pago automáticamente
+            if (!isGroupPlan && newClient) {
+              const createdMembership = memberships.find(
+                m => m.clientId === newClient!.id &&
+                     m.membershipTypeId === formData.membershipTypeId &&
+                     m.status === 'active'
+              );
               
-              // Cerrar modal de creación y abrir modal de pago
-              setFormData({
-                name: '',
-                email: '',
-                phone: '',
-                documentId: '',
-                birthDate: '',
-                initialWeight: '',
-                notes: '',
-                membershipTypeId: '',
-                membershipStartDate: '',
-              });
-              setErrors({});
-              setShowPaymentModal(true);
-              return; // No llamar onSuccess todavía, esperar a que se cierre el modal de pago
+              // Guardar datos para el modal de pago
+              if (createdMembership) {
+                setNewClientId(newClient.id);
+                setNewMembershipId(createdMembership.id);
+                setNewMembershipTypeId(formData.membershipTypeId);
+                setNewMembershipStartDate(startDate);
+                
+                // Cerrar modal de creación y abrir modal de pago
+                setFormData({
+                  name: '',
+                  email: '',
+                  phone: '',
+                  documentId: '',
+                  birthDate: '',
+                  initialWeight: '',
+                  notes: '',
+                  membershipTypeId: '',
+                  membershipStartDate: '',
+                });
+                setSelectedClientIdsForGroup([]);
+                setClientsToCreate([]);
+                setErrors({});
+                setShowPaymentModal(true);
+                return; // No llamar onSuccess todavía, esperar a que se cierre el modal de pago
+              }
             }
           } catch (err: any) {
             setErrors({
@@ -1019,7 +1298,7 @@ function NewMemberModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; onClo
         }
       }
 
-      // Si no se creó membresía, resetear y cerrar
+      // Si no se creó membresía o es plan grupal, resetear y cerrar
       setFormData({
         name: '',
         email: '',
@@ -1031,6 +1310,8 @@ function NewMemberModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; onClo
         membershipTypeId: '',
         membershipStartDate: '',
       });
+      setSelectedClientIdsForGroup([]);
+      setClientsToCreate([]);
       setErrors({});
       onSuccess();
     } catch (error) {
@@ -1138,49 +1419,230 @@ function NewMemberModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; onClo
 
           {/* Columna Derecha: Membresía */}
           <div className="space-y-5">
-            <div className="pb-5 border-b border-gray-200 dark:border-dark-700/30">
-              <h3 className="text-base font-semibold text-gray-900 dark:text-gray-200 mb-1">Membresía Inicial</h3>
-              <p className="text-xs text-gray-600 dark:text-gray-500">Todos los miembros deben tener una membresía activa</p>
-            </div>
-
             <div className="space-y-4">
               <Select
-                label="Plan de membresía *"
+                label="Plan de membresía"
                 value={formData.membershipTypeId}
                 onChange={(e) => {
                   const selectedPlan = membershipTypes.find(t => t.id === e.target.value);
+                  const isGroupPlan = selectedPlan?.maxCapacity && selectedPlan.maxCapacity > 1;
+                  
                   setFormData({ 
                     ...formData, 
                     membershipTypeId: e.target.value,
-                    membershipStartDate: formData.membershipStartDate || new Date().toISOString().split('T')[0]
+                    membershipStartDate: e.target.value ? (formData.membershipStartDate || new Date().toISOString().split('T')[0]) : ''
                   });
+                  
+                  // Si cambia de plan grupal a individual o viceversa, limpiar selecciones
+                  if (!isGroupPlan) {
+                    setSelectedClientIdsForGroup([]);
+                    setClientsToCreate([]);
+                  }
+                  
+                  // Limpiar error si se selecciona un plan
+                  if (e.target.value && errors.membershipTypeId) {
+                    setErrors({ ...errors, membershipTypeId: '' });
+                  }
                 }}
                 error={errors.membershipTypeId}
-                required
                 options={[
-                  { value: '', label: 'Seleccionar plan...' },
+                  { value: '', label: 'Sin membresía (asignar después)' },
                   ...membershipTypes.filter(t => t.isActive).map((plan) => ({
                     value: plan.id,
-                    label: `${plan.name} - $${plan.price.toLocaleString()}/mes`
+                    label: `${plan.name} - $${plan.price.toLocaleString()}/mes${plan.maxCapacity && plan.maxCapacity > 1 ? ` (Grupal - ${plan.maxCapacity} personas)` : ''}`
                   }))
                 ]}
               />
+              
+              {/* Selector de clientes para planes grupales */}
+              {(() => {
+                if (!formData.membershipTypeId) return null;
+                
+                const selectedPlan = membershipTypes.find(t => t.id === formData.membershipTypeId);
+                if (!selectedPlan) return null;
+                
+                const maxCapacity = selectedPlan.maxCapacity;
+                const isGroupPlan = maxCapacity !== null && maxCapacity !== undefined && maxCapacity > 1;
+                
+                if (!isGroupPlan) return null;
+                
+                const currentCount = selectedClientIdsForGroup.length + clientsToCreate.length + (formData.name ? 1 : 0);
+                
+                return (
+                  <div className="space-y-3 mt-4 pt-4 border-t border-gray-200 dark:border-dark-700">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Seleccionar clientes para el plan grupal ({currentCount}/{maxCapacity})
+                      </label>
+                      {currentCount < maxCapacity && (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => {
+                            setClientsToCreate([...clientsToCreate, { name: '', email: '', phone: '' }]);
+                          }}
+                          className="text-xs"
+                        >
+                          <Plus className="w-3 h-3 mr-1" />
+                          Agregar nuevo cliente
+                        </Button>
+                      )}
+                    </div>
+                    
+                    {/* Cliente principal (el que se está creando) */}
+                    {formData.name && (
+                      <div className="p-2 bg-primary-500/10 border border-primary-500/30 rounded-lg flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-primary-500/20 flex items-center justify-center text-primary-400 text-xs font-bold">
+                            {formData.name.charAt(0).toUpperCase()}
+                          </div>
+                          <span className="text-sm text-gray-900 dark:text-gray-100">{formData.name}</span>
+                          <Badge variant="info" className="text-xs">Cliente principal</Badge>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Clientes existentes seleccionados */}
+                    <div className="max-h-48 overflow-y-auto border border-gray-300 dark:border-dark-700 rounded-lg p-2 space-y-2">
+                      {clients.length === 0 ? (
+                        <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+                          No hay clientes disponibles. Usa el botón "Agregar nuevo cliente" para crear uno.
+                        </p>
+                      ) : (
+                        clients
+                          .filter(c => c.status === 'active')
+                          .map(client => {
+                          const isSelected = selectedClientIdsForGroup.includes(client.id);
+                          return (
+                            <label
+                              key={client.id}
+                              className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors ${
+                                isSelected
+                                  ? 'bg-primary-500/20 border border-primary-500/50'
+                                  : 'hover:bg-gray-100 dark:hover:bg-dark-800/50'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    if (currentCount >= maxCapacity) {
+                                      setErrors({ membershipTypeId: `Este plan permite máximo ${maxCapacity} cliente(s)` });
+                                      return;
+                                    }
+                                    setSelectedClientIdsForGroup([...selectedClientIdsForGroup, client.id]);
+                                  } else {
+                                    setSelectedClientIdsForGroup(selectedClientIdsForGroup.filter(id => id !== client.id));
+                                  }
+                                  if (errors.membershipTypeId) setErrors({ ...errors, membershipTypeId: '' });
+                                }}
+                                className="w-4 h-4 rounded border-gray-300 dark:border-dark-600 bg-white dark:bg-dark-800 accent-primary-500"
+                                disabled={isLoading}
+                              />
+                              <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-dark-700 flex items-center justify-center text-gray-600 dark:text-gray-400 text-xs font-bold">
+                                {client.name.charAt(0).toUpperCase()}
+                              </div>
+                              <div className="flex-1">
+                                <span className="text-sm text-gray-900 dark:text-gray-100">{client.name}</span>
+                                {client.email && (
+                                  <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">({client.email})</span>
+                                )}
+                              </div>
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+                    
+                    {/* Formularios para crear nuevos clientes */}
+                    {clientsToCreate.map((clientToCreate, index) => (
+                      <div key={index} className="p-3 bg-gray-50 dark:bg-dark-800/30 border border-gray-200 dark:border-dark-700 rounded-lg space-y-2">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Nuevo cliente {index + 1}</span>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => {
+                              setClientsToCreate(clientsToCreate.filter((_, i) => i !== index));
+                            }}
+                            className="text-xs h-6 px-2"
+                          >
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </div>
+                        <Input
+                          placeholder="Nombre completo *"
+                          value={clientToCreate.name}
+                          onChange={(e) => {
+                            const updated = [...clientsToCreate];
+                            updated[index].name = e.target.value;
+                            setClientsToCreate(updated);
+                          }}
+                          required
+                        />
+                        <div className="grid grid-cols-2 gap-2">
+                          <Input
+                            placeholder="Email"
+                            type="email"
+                            value={clientToCreate.email || ''}
+                            onChange={(e) => {
+                              const updated = [...clientsToCreate];
+                              updated[index].email = e.target.value;
+                              setClientsToCreate(updated);
+                            }}
+                          />
+                          <Input
+                            placeholder="WhatsApp"
+                            value={clientToCreate.phone || ''}
+                            onChange={(e) => {
+                              const updated = [...clientsToCreate];
+                              updated[index].phone = e.target.value;
+                              setClientsToCreate(updated);
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                    
+                    {currentCount >= maxCapacity && (
+                      <p className="text-xs text-success-400 flex items-center gap-1">
+                        <CheckCircle className="w-3 h-3" />
+                        Plan completo ({maxCapacity}/{maxCapacity} clientes)
+                      </p>
+                    )}
+                    {currentCount < maxCapacity && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Faltan {maxCapacity - currentCount} cliente{maxCapacity - currentCount > 1 ? 's' : ''} para completar el plan
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Fecha de inicio *
-                </label>
-                <input
-                  type="date"
-                  value={formData.membershipStartDate}
-                  onChange={(e) => setFormData({ ...formData, membershipStartDate: e.target.value })}
-                  className="w-full px-4 py-2 bg-gray-100 dark:bg-dark-800 border border-gray-300 dark:border-dark-600 rounded-lg text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-0 [&::-webkit-calendar-picker-indicator]:contrast-100 [&::-moz-calendar-picker-indicator]:cursor-pointer [&::-moz-calendar-picker-indicator]:invert [&::-moz-calendar-picker-indicator]:brightness-0 [&::-moz-calendar-picker-indicator]:contrast-100"
-                  style={{
-                    filter: 'none',
-                  }}
-                  required
-                  onClick={(e) => e.currentTarget.showPicker?.()}
-                />
+              {formData.membershipTypeId && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Fecha de inicio
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.membershipStartDate}
+                    onChange={(e) => {
+                      setFormData({ ...formData, membershipStartDate: e.target.value });
+                      // Limpiar error si se selecciona una fecha
+                      if (e.target.value && errors.membershipStartDate) {
+                        setErrors({ ...errors, membershipStartDate: '' });
+                      }
+                    }}
+                    className="w-full px-4 py-2 bg-gray-100 dark:bg-dark-800 border border-gray-300 dark:border-dark-600 rounded-lg text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-0 [&::-webkit-calendar-picker-indicator]:contrast-100 [&::-moz-calendar-picker-indicator]:cursor-pointer [&::-moz-calendar-picker-indicator]:invert [&::-moz-calendar-picker-indicator]:brightness-0 [&::-moz-calendar-picker-indicator]:contrast-100"
+                    style={{
+                      filter: 'none',
+                    }}
+                    onClick={(e) => e.currentTarget.showPicker?.()}
+                  />
                 <p className="text-xs text-gray-500 dark:text-gray-500 mt-1.5">
                   Esta fecha será la referencia para calcular el próximo cobro mensual
                 </p>
@@ -1188,6 +1650,7 @@ function NewMemberModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; onClo
                   <p className="text-xs text-red-400 mt-1">{errors.membershipStartDate}</p>
                 )}
               </div>
+              )}
             </div>
           </div>
         </div>
@@ -1959,6 +2422,7 @@ function PaymentModal({
         type,
         amountOwed: paymentStatus.totalOwed,
         monthsOwed: paymentStatus.monthsOwed,
+        daysOwed: paymentStatus.daysOwed || (paymentStatus.monthsOwed * type.durationDays),
         isUpToDate: paymentStatus.isUpToDate,
         nextPaymentMonth: paymentStatus.nextPaymentMonth,
       };
@@ -1968,6 +2432,7 @@ function PaymentModal({
       type: import('@/types').MembershipType;
       amountOwed: number;
       monthsOwed: number;
+      daysOwed: number;
       isUpToDate: boolean;
       nextPaymentMonth: string | null;
     }>;
@@ -2149,6 +2614,7 @@ function PaymentModal({
 
   const amountOwed = selectedMembership.amountOwed;
   const monthsOwed = selectedMembership.monthsOwed;
+  const daysOwed = selectedMembership.daysOwed || (monthsOwed * selectedMembership.type.durationDays);
   const isUpToDate = selectedMembership.isUpToDate;
   const suggestedAmount = amountOwed > 0 ? amountOwed : selectedMembership.type.price;
 
@@ -2163,8 +2629,8 @@ function PaymentModal({
           {/* Columna izquierda: Selección */}
           <div className="space-y-4">
             {/* Info del cliente - Compacta */}
-            <div className="bg-gray-50 dark:bg-dark-750 p-3 rounded-lg">
-              <p className="text-xs text-gray-600 dark:text-dark-400 mb-1">Cliente</p>
+            <div className="bg-gray-50 dark:bg-dark-800/50 p-3 rounded-lg border border-gray-200 dark:border-dark-700">
+              <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Cliente</p>
               <p className="text-lg font-bold text-gray-900 dark:text-gray-100">{client.name}</p>
               <div className="mt-1.5 flex items-center gap-2">
                 {activeMemberships.length > 1 && (
@@ -2380,21 +2846,21 @@ function PaymentModal({
           {/* Columna derecha: Resumen del pago - Prominente */}
           <div className={`p-5 rounded-lg border-2 ${
             isUpToDate 
-              ? 'bg-success-500/10 border-success-500/30' 
-              : 'bg-warning-500/10 border-warning-500/30'
+              ? 'bg-success-500/10 dark:bg-success-500/20 border-success-500/30 dark:border-success-500/50' 
+              : 'bg-warning-500/10 dark:bg-warning-500/20 border-warning-500/30 dark:border-warning-500/50'
           }`}>
-            <p className="text-xs text-gray-600 dark:text-dark-400 mb-3 text-center uppercase tracking-wide">
+            <p className="text-xs text-gray-600 dark:text-gray-400 mb-3 text-center uppercase tracking-wide">
               {isUpToDate ? 'Resumen del pago adelantado' : 'Resumen del pago'}
             </p>
             <div className="text-center space-y-3">
               <div>
-                <p className="text-xs text-gray-600 dark:text-dark-400 mb-1">Membresía</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Membresía</p>
                 <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
                   {selectedMembership.type.name}
                 </p>
               </div>
               <div>
-                <p className="text-xs text-gray-600 dark:text-dark-400 mb-1">
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">
                   {monthsOwed > 0 
                     ? 'Deuda pendiente' 
                     : isUpToDate && monthsToPay && typeof monthsToPay === 'number'
@@ -2402,23 +2868,48 @@ function PaymentModal({
                     : 'Mes adelantado'}
                 </p>
                 <p className="text-base font-semibold text-gray-700 dark:text-gray-200">
-                  {monthsOwed > 0 
-                    ? `${monthsOwed} ${monthsOwed === 1 ? 'mes' : 'meses'}`
-                    : isUpToDate && monthsToPay && typeof monthsToPay === 'number'
-                    ? `${monthsToPay} ${monthsToPay === 1 ? 'mes' : 'meses'}`
-                    : '1 mes'}
+                  {(() => {
+                    if (monthsOwed > 0) {
+                      // Mostrar días totales adeudados
+                      if (daysOwed >= 365) {
+                        const years = Math.floor(daysOwed / 365);
+                        const remainingDays = daysOwed % 365;
+                        if (remainingDays === 0) {
+                          return `${years} ${years === 1 ? 'año' : 'años'}`;
+                        } else {
+                          return `${years} ${years === 1 ? 'año' : 'años'} y ${remainingDays} ${remainingDays === 1 ? 'día' : 'días'}`;
+                        }
+                      }
+                      return `${daysOwed} ${daysOwed === 1 ? 'día' : 'días'}`;
+                    }
+                    if (isUpToDate && monthsToPay && typeof monthsToPay === 'number') {
+                      const daysToPay = monthsToPay * selectedMembership.type.durationDays;
+                      if (daysToPay >= 365) {
+                        const years = Math.floor(daysToPay / 365);
+                        const remainingDays = daysToPay % 365;
+                        if (remainingDays === 0) {
+                          return `${years} ${years === 1 ? 'año' : 'años'}`;
+                        } else {
+                          return `${years} ${years === 1 ? 'año' : 'años'} y ${remainingDays} ${remainingDays === 1 ? 'día' : 'días'}`;
+                        }
+                      }
+                      return `${daysToPay} ${daysToPay === 1 ? 'día' : 'días'}`;
+                    }
+                    const daysDefault = selectedMembership.type.durationDays;
+                    return `${daysDefault} ${daysDefault === 1 ? 'día' : 'días'}`;
+                  })()}
                 </p>
               </div>
               <div className={`pt-3 border-t ${
                 isUpToDate 
-                  ? 'border-success-500/20' 
-                  : 'border-warning-500/20'
+                  ? 'border-success-500/20 dark:border-success-500/40' 
+                  : 'border-warning-500/20 dark:border-warning-500/40'
               }`}>
-                <p className="text-xs text-gray-600 dark:text-dark-400 mb-1">Total</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Total</p>
                 <p className={`text-4xl font-bold ${
                   isUpToDate 
-                    ? 'text-success-400' 
-                    : 'text-warning-400'
+                    ? 'text-success-500 dark:text-success-400' 
+                    : 'text-warning-500 dark:text-warning-400'
                 }`}>
                   ${(() => {
                     if (monthsOwed > 0) return amountOwed.toLocaleString();

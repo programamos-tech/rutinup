@@ -657,6 +657,8 @@ function PlanModal({
     priceDisplay: plan?.price ? formatPriceInput(plan.price) : '', // Valor formateado para mostrar
     durationDays: plan?.durationDays || 0,
     durationDaysDisplay: plan?.durationDays ? plan.durationDays.toString() : '',
+    maxCapacity: plan?.maxCapacity || null,
+    maxCapacityDisplay: plan?.maxCapacity ? plan.maxCapacity.toString() : '',
     description: plan?.description || '',
     includes: plan?.includes || {
       freeWeights: false,
@@ -686,6 +688,8 @@ function PlanModal({
         priceDisplay: formatPriceInput(plan.price),
         durationDays: plan.durationDays,
         durationDaysDisplay: plan.durationDays ? plan.durationDays.toString() : '',
+        maxCapacity: plan.maxCapacity || null,
+        maxCapacityDisplay: plan.maxCapacity ? plan.maxCapacity.toString() : '',
         description: plan.description || '',
         includes: plan.includes,
         restrictions: plan.restrictions || {},
@@ -701,6 +705,8 @@ function PlanModal({
         priceDisplay: '',
         durationDays: 0,
         durationDaysDisplay: '',
+        maxCapacity: null,
+        maxCapacityDisplay: '',
         description: '',
         includes: {
           freeWeights: false,
@@ -747,11 +753,11 @@ function PlanModal({
       });
       return;
     }
-    if (formData.durationDays < 7) {
+    if (formData.durationDays < 1) {
       setConfirmDialog({
         isOpen: true,
         title: 'Duración inválida',
-        message: 'La duración mínima es de 7 días',
+        message: 'La duración mínima es de 1 día',
         onConfirm: () => setConfirmDialog(prev => ({ ...prev, isOpen: false })),
         variant: 'warning',
       });
@@ -776,9 +782,13 @@ function PlanModal({
       return;
     }
 
-    // Enviar solo los datos necesarios (sin priceDisplay y durationDaysDisplay)
-    const { priceDisplay, durationDaysDisplay, ...dataToSave } = formData;
-    onSave(dataToSave);
+    // Enviar solo los datos necesarios (sin campos Display)
+    const { priceDisplay, durationDaysDisplay, maxCapacityDisplay, ...dataToSave } = formData;
+    // Convertir maxCapacityDisplay a número o null
+    const maxCapacityValue = maxCapacityDisplay && maxCapacityDisplay.trim() !== ''
+      ? parseInt(maxCapacityDisplay) 
+      : null;
+    onSave({ ...dataToSave, maxCapacity: maxCapacityValue });
   };
 
   const updateInclude = (key: keyof typeof formData.includes, value: any) => {
@@ -949,7 +959,7 @@ function PlanModal({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Duración (días) *
+                Duración en días *
               </label>
               <input
                 type="text"
@@ -967,11 +977,11 @@ function PlanModal({
                 onBlur={(e) => {
                   // Al perder el foco, validar que tenga un valor mínimo
                   const parsed = parseInt(e.target.value, 10) || 0;
-                  if (parsed > 0 && parsed < 7) {
+                  if (parsed > 0 && parsed < 1) {
                     setFormData({
                       ...formData,
-                      durationDaysDisplay: '7',
-                      durationDays: 7,
+                      durationDaysDisplay: '1',
+                      durationDays: 1,
                     });
                   } else if (parsed === 0 && e.target.value !== '') {
                     setFormData({
@@ -981,12 +991,40 @@ function PlanModal({
                     });
                   }
                 }}
-                placeholder="Ej: 30"
+                placeholder="Ej: 1, 3, 7, 30"
                 className="w-full px-4 py-2 bg-gray-100 dark:bg-dark-800 border border-gray-300 dark:border-dark-600 rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 required
               />
-              <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">Duración mínima: 7 días</p>
+              <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">Duración en días (mínimo: 1 día)</p>
             </div>
+          </div>
+
+          {/* Campo de capacidad máxima */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Capacidad máxima (opcional)
+            </label>
+            <input
+              type="number"
+              min="1"
+              value={formData.maxCapacityDisplay}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value === '') {
+                  setFormData({ ...formData, maxCapacityDisplay: '', maxCapacity: null });
+                } else {
+                  const num = parseInt(value);
+                  if (!isNaN(num) && num >= 1) {
+                    setFormData({ ...formData, maxCapacityDisplay: value, maxCapacity: num });
+                  }
+                }
+              }}
+              className="w-full px-4 py-2 bg-gray-100 dark:bg-dark-800/50 border border-gray-300 dark:border-dark-700/50 text-gray-900 dark:text-gray-100 rounded-lg focus:border-primary-500 focus:outline-none"
+              placeholder="Dejar vacío para individual (1 cliente)"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+              Número máximo de clientes que pueden compartir este plan. Dejar vacío = membresía individual (1 cliente). Ej: 2 = Duo, 3 = Trio
+            </p>
           </div>
 
             <Textarea

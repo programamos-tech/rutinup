@@ -12,7 +12,7 @@ import { Select } from '@/components/ui/Select';
 import { Textarea } from '@/components/ui/Textarea';
 import { useApp } from '@/context/AppContext';
 import { format, addMonths, parseISO } from 'date-fns';
-import { calculatePaymentStatus } from '@/utils/paymentCalculations';
+import { calculatePaymentStatus, getPeriodLabels } from '@/utils/paymentCalculations';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Edit, Trash2, Plus, Download, MessageCircle, Check, Phone, CreditCard, AlertCircle, CheckCircle } from 'lucide-react';
 import Link from 'next/link';
@@ -124,7 +124,11 @@ export default function ClientDetailPage() {
     let totalMonthsOwed = 0;
     let totalAmountOwed = 0;
     let totalMonthsPaid = 0;
+    let totalDaysOwed = 0;
     let isOverdue = false;
+    let periodLabel: string | undefined;
+    let periodLabelSingular: string | undefined;
+    let periodLabelPlural: string | undefined;
     const membershipsWithDebt: Array<{ membership: any; monthsOwed: number; amountOwed: number }> = [];
 
     activeMemberships.forEach(membership => {
@@ -145,6 +149,14 @@ export default function ClientDetailPage() {
       totalMonthsOwed += calculatedStatus.monthsOwed;
       totalAmountOwed += calculatedStatus.totalOwed;
       totalMonthsPaid += calculatedStatus.monthsPaid;
+      totalDaysOwed += calculatedStatus.daysOwed || (calculatedStatus.monthsOwed * membershipType.durationDays);
+      
+      // Guardar las etiquetas del período de la primera membresía
+      if (!periodLabel && calculatedStatus.periodLabel) {
+        periodLabel = calculatedStatus.periodLabel;
+        periodLabelSingular = calculatedStatus.periodLabelSingular;
+        periodLabelPlural = calculatedStatus.periodLabelPlural;
+      }
       
       if (calculatedStatus.isOverdue) {
         isOverdue = true;
@@ -159,6 +171,14 @@ export default function ClientDetailPage() {
       }
     });
 
+    // Determinar etiqueta para días adeudados
+    let daysOwedLabel = 'días';
+    if (totalDaysOwed >= 365) {
+      daysOwedLabel = Math.floor(totalDaysOwed / 365) === 1 ? 'año' : 'años';
+    } else if (totalDaysOwed === 1) {
+      daysOwedLabel = 'día';
+    }
+
     return {
       monthsOwed: totalMonthsOwed,
       amountOwed: totalAmountOwed,
@@ -169,6 +189,11 @@ export default function ClientDetailPage() {
       monthsPaid: totalMonthsPaid,
       totalMemberships: activeMemberships.length,
       membershipsWithDebt: membershipsWithDebt.length,
+      daysOwed: totalDaysOwed,
+      daysOwedLabel,
+      periodLabel: periodLabel || 'mes',
+      periodLabelSingular: periodLabelSingular || 'mes',
+      periodLabelPlural: periodLabelPlural || 'meses',
     };
   }, [client, clientMemberships, clientPayments, membershipTypes, calculateAdvancePaidMonths]);
 
@@ -414,7 +439,21 @@ export default function ClientDetailPage() {
                       <p className={`font-semibold ${
                         hasCriticalDebt ? 'text-danger-400 text-danger-glow' : 'text-amber-600 dark:text-warning-500'
                       }`}>
-                        Debe {paymentStatus.monthsOwed} {paymentStatus.monthsOwed === 1 ? 'mes' : 'meses'}
+                        {(() => {
+                          if (paymentStatus.daysOwed !== undefined && paymentStatus.daysOwed > 0) {
+                            if (paymentStatus.daysOwed >= 365) {
+                              const years = Math.floor(paymentStatus.daysOwed / 365);
+                              const remainingDays = paymentStatus.daysOwed % 365;
+                              if (remainingDays === 0) {
+                                return `Debe ${years} ${years === 1 ? 'año' : 'años'}`;
+                              } else {
+                                return `Debe ${years} ${years === 1 ? 'año' : 'años'} y ${remainingDays} ${remainingDays === 1 ? 'día' : 'días'}`;
+                              }
+                            }
+                            return `Debe ${paymentStatus.daysOwed} ${paymentStatus.daysOwed === 1 ? 'día' : 'días'}`;
+                          }
+                          return `Debe ${paymentStatus.monthsOwed} ${paymentStatus.periodLabel || (paymentStatus.monthsOwed === 1 ? 'mes' : 'meses')}`;
+                        })()}
                         {paymentStatus.membershipsWithDebt > 1 && (
                           <span className="ml-2 text-sm font-normal">
                             (de {paymentStatus.membershipsWithDebt} {paymentStatus.membershipsWithDebt === 1 ? 'membresía' : 'membresías'})
@@ -439,9 +478,9 @@ export default function ClientDetailPage() {
                       <p className="text-lg font-semibold text-success-400">
                         Al día
                       </p>
-                      {paymentStatus.advancePaidMonths > 0 && (
+                          {paymentStatus.advancePaidMonths > 0 && (
                         <p className="text-sm text-success-400 font-medium mt-2">
-                          {paymentStatus.advancePaidMonths} {paymentStatus.advancePaidMonths === 1 ? 'mes' : 'meses'} pagado{paymentStatus.advancePaidMonths > 1 ? 's' : ''} por adelantado
+                          {paymentStatus.advancePaidMonths} {paymentStatus.periodLabel || (paymentStatus.advancePaidMonths === 1 ? 'mes' : 'meses')} pagado{paymentStatus.advancePaidMonths > 1 ? 's' : ''} por adelantado
                         </p>
                       )}
                       <p className="text-xs text-gray-600 dark:text-dark-400 mt-1">
@@ -706,15 +745,47 @@ export default function ClientDetailPage() {
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-2 flex-wrap">
                             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-50">{type?.name || 'Membresía'}</h3>
+                            {type?.maxCapacity && type.maxCapacity > 1 && (
+                              <Badge variant="info" className="bg-primary-500/20 text-primary-400 border border-primary-500/50">
+                                Plan Grupal ({membership.clients?.length || 1}/{type.maxCapacity})
+                              </Badge>
+                            )}
                             <Badge variant={clientIsInactive ? 'warning' : (isCanceled ? 'warning' : (isActive ? 'success' : 'danger'))}>
                               {clientIsInactive ? 'Vencida' : (isCanceled ? 'Cancelada' : (isActive ? 'Activa' : 'Vencida'))}
                             </Badge>
-                            {advanceMonthsForThis > 0 && (
-                              <Badge variant="success" className="bg-success-500/20 text-success-400 border border-success-500/50">
-                                {advanceMonthsForThis} {advanceMonthsForThis === 1 ? 'mes' : 'meses'} pagado{advanceMonthsForThis > 1 ? 's' : ''} por adelantado
-                              </Badge>
-                            )}
+                              {advanceMonthsForThis > 0 && (() => {
+                                const durationDays = type?.durationDays || 30;
+                                const { singular, plural } = getPeriodLabels(durationDays);
+                                const label = advanceMonthsForThis === 1 ? singular : plural;
+                                return (
+                                  <Badge variant="success" className="bg-success-500/20 text-success-400 border border-success-500/50">
+                                    {advanceMonthsForThis} {label} pagado{advanceMonthsForThis > 1 ? 's' : ''} por adelantado
+                                  </Badge>
+                                );
+                              })()}
                           </div>
+                          {/* Mostrar clientes asociados si es membresía grupal */}
+                          {membership.clients && membership.clients.length > 0 && (
+                            <div className="mb-2">
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Clientes asociados:</p>
+                              <div className="flex flex-wrap gap-2">
+                                {membership.clients.map((associatedClient) => (
+                                  <Badge 
+                                    key={associatedClient.id} 
+                                    variant="secondary"
+                                    className={`text-xs ${
+                                      associatedClient.id === client.id 
+                                        ? 'bg-primary-500/20 text-primary-400 border border-primary-500/50' 
+                                        : ''
+                                    }`}
+                                  >
+                                    {associatedClient.name}
+                                    {associatedClient.id === client.id && ' (Tú)'}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                           <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
                             {format(new Date(membership.startDate), 'dd/MM/yyyy')} - {format(endDate, 'dd/MM/yyyy')}
                           </p>
@@ -723,11 +794,16 @@ export default function ClientDetailPage() {
                               <span className="text-sm font-semibold text-primary-500 dark:text-primary-400">
                                 ${type.price.toLocaleString()}/mes
                               </span>
-                              {monthsOwedForThis > 0 && (
-                                <span className="text-sm font-bold text-amber-600 dark:text-warning-500">
-                                  • Debe {monthsOwedForThis} {monthsOwedForThis === 1 ? 'mes' : 'meses'}: ${amountOwedForThis.toLocaleString()}
-                                </span>
-                              )}
+                              {monthsOwedForThis > 0 && (() => {
+                                const durationDays = type?.durationDays || 30;
+                                const { singular, plural } = getPeriodLabels(durationDays);
+                                const label = monthsOwedForThis === 1 ? singular : plural;
+                                return (
+                                  <span className="text-sm font-bold text-amber-600 dark:text-warning-500">
+                                    • Debe {monthsOwedForThis} {label}: ${amountOwedForThis.toLocaleString()}
+                                  </span>
+                                );
+                              })()}
                               {monthsOwedForThis === 0 && isActive && (
                                 <span className="text-sm text-success-400 flex items-center gap-1">
                                   <CheckCircle className="w-3 h-3" />
@@ -1840,7 +1916,7 @@ function WeightChart({ data }: { data: Array<{ date: string; weight: number; isI
 
 // Modal components
 function MembershipModal({ isOpen, onClose, clientId, onSuccess }: any) {
-  const { membershipTypes, addMembership, memberships } = useApp();
+  const { membershipTypes, addMembership, addClientToGroupMembership, memberships, clients } = useApp();
   const [formData, setFormData] = useState({
     membershipTypeId: '',
     startDate: new Date().toISOString().split('T')[0],
@@ -1848,17 +1924,76 @@ function MembershipModal({ isOpen, onClose, clientId, onSuccess }: any) {
     amount: 0,
     notes: '',
   });
+  const [selectedClientIds, setSelectedClientIds] = useState<string[]>([clientId]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [availableGroupMemberships, setAvailableGroupMemberships] = useState<Array<{ id: string; currentCount: number; maxCapacity: number }>>([]);
+  const [joinExistingMembership, setJoinExistingMembership] = useState<string | null>(null);
+
+  // Obtener el plan seleccionado
+  const selectedPlan = formData.membershipTypeId 
+    ? membershipTypes.find(t => t.id === formData.membershipTypeId)
+    : null;
+  
+  const isGroupPlan = selectedPlan?.maxCapacity && selectedPlan.maxCapacity > 1;
+  const maxCapacity = selectedPlan?.maxCapacity || 1;
 
   // Verificar si el cliente ya tiene una membresía activa del tipo seleccionado
   const existingMembership = formData.membershipTypeId 
     ? memberships.find(
-        m => m.clientId === clientId &&
-             m.membershipTypeId === formData.membershipTypeId &&
-             m.status === 'active'
+        m => {
+          // Verificar si el cliente está en esta membresía (individual o grupal)
+          const isInMembership = m.clientId === clientId || 
+            (m.clients && m.clients.some(c => c.id === clientId));
+          return isInMembership &&
+            m.membershipTypeId === formData.membershipTypeId &&
+            m.status === 'active';
+        }
       )
     : null;
+
+  // Buscar membresías grupales existentes del mismo tipo con capacidad disponible
+  React.useEffect(() => {
+    if (isGroupPlan && selectedPlan && !existingMembership) {
+      const available = memberships
+        .filter(m => 
+          m.membershipTypeId === formData.membershipTypeId &&
+          m.status === 'active' &&
+          m.clientId === null // Es membresía grupal
+        )
+        .map(m => {
+          const currentCount = m.clients?.length || 0;
+          return {
+            id: m.id,
+            currentCount,
+            maxCapacity: selectedPlan.maxCapacity!,
+          };
+        })
+        .filter(m => m.currentCount < m.maxCapacity); // Solo las que tienen capacidad
+      
+      setAvailableGroupMemberships(available);
+      // Si hay una disponible, seleccionarla por defecto
+      if (available.length === 1) {
+        setJoinExistingMembership(available[0].id);
+      } else {
+        setJoinExistingMembership(null);
+      }
+    } else {
+      setAvailableGroupMemberships([]);
+      setJoinExistingMembership(null);
+    }
+  }, [formData.membershipTypeId, isGroupPlan, selectedPlan, existingMembership, memberships]);
+  
+  // Resetear clientes seleccionados cuando cambia el plan
+  React.useEffect(() => {
+    if (isGroupPlan) {
+      // Si es plan grupal, mantener el cliente actual y permitir agregar más
+      setSelectedClientIds([clientId]);
+    } else {
+      // Si es plan individual, solo el cliente actual
+      setSelectedClientIds([clientId]);
+    }
+  }, [formData.membershipTypeId, clientId, isGroupPlan]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1886,17 +2021,39 @@ function MembershipModal({ isOpen, onClose, clientId, onSuccess }: any) {
     }
 
     try {
-      const startDate = new Date(formData.startDate);
-      const endDate = new Date(startDate);
-      endDate.setDate(endDate.getDate() + type.durationDays);
+      // Si hay una membresía grupal existente disponible y se seleccionó unirse a ella
+      if (isGroupPlan && joinExistingMembership && availableGroupMemberships.length > 0) {
+        // Agregar cliente a membresía existente (no requiere fecha, usa la de la membresía existente)
+        await addClientToGroupMembership(joinExistingMembership, clientId);
+      } else {
+        // Crear nueva membresía
+        // Validar capacidad máxima para planes grupales
+        if (isGroupPlan && selectedClientIds.length > maxCapacity) {
+          setError(`Este plan permite máximo ${maxCapacity} cliente(s). Has seleccionado ${selectedClientIds.length}.`);
+          setIsSubmitting(false);
+          return;
+        }
 
-      await addMembership({
-        clientId,
-        membershipTypeId: formData.membershipTypeId,
-        startDate,
-        endDate,
-        status: 'active',
-      });
+        // Validar que se haya seleccionado al menos un cliente
+        if (selectedClientIds.length === 0) {
+          setError('Debes seleccionar al menos un cliente');
+          setIsSubmitting(false);
+          return;
+        }
+
+        const startDate = new Date(formData.startDate);
+        const endDate = new Date(startDate);
+        endDate.setDate(endDate.getDate() + type.durationDays);
+
+        await addMembership({
+          clientId: isGroupPlan ? null : selectedClientIds[0], // null para planes grupales
+          clientIds: isGroupPlan ? selectedClientIds : undefined,
+          membershipTypeId: formData.membershipTypeId,
+          startDate,
+          endDate,
+          status: 'active',
+        });
+      }
 
       // Reset form
       setFormData({
@@ -1906,6 +2063,7 @@ function MembershipModal({ isOpen, onClose, clientId, onSuccess }: any) {
         amount: 0,
         notes: '',
       });
+      setSelectedClientIds([clientId]);
       
       onSuccess();
     } catch (err: any) {
@@ -1949,7 +2107,7 @@ function MembershipModal({ isOpen, onClose, clientId, onSuccess }: any) {
             { value: '', label: 'Seleccionar tipo de membresía' },
             ...membershipTypes.filter(t => t.isActive).map((t) => ({ 
               value: t.id, 
-              label: `${t.name} - $${t.price.toLocaleString()}` 
+              label: `${t.name} - $${t.price.toLocaleString()}${t.maxCapacity && t.maxCapacity > 1 ? ` (Grupal - ${t.maxCapacity} personas)` : ''}` 
             }))
           ]}
           value={formData.membershipTypeId}
@@ -1960,17 +2118,138 @@ function MembershipModal({ isOpen, onClose, clientId, onSuccess }: any) {
           required
           disabled={isSubmitting}
         />
-        <Input
-          label="Fecha de inicio *"
-          type="date"
-          value={formData.startDate}
-          onChange={(e) => {
-            setFormData({ ...formData, startDate: e.target.value });
-            if (error) setError(null);
-          }}
-          required
-          disabled={isSubmitting}
-        />
+        
+        {/* Opción para unirse a membresía grupal existente */}
+        {isGroupPlan && availableGroupMemberships.length > 0 && !existingMembership && (
+          <div className="bg-primary-500/10 border border-primary-500/30 rounded-lg p-4">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="radio"
+                name="membershipOption"
+                checked={joinExistingMembership !== null}
+                onChange={(e) => {
+                  if (e.target.checked && availableGroupMemberships.length > 0) {
+                    setJoinExistingMembership(availableGroupMemberships[0].id);
+                  } else {
+                    setJoinExistingMembership(null);
+                  }
+                }}
+                className="mt-1 w-4 h-4 accent-primary-500"
+              />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">
+                  Unirse a membresía grupal existente
+                </p>
+                <p className="text-xs text-gray-600 dark:text-gray-400">
+                  Hay {availableGroupMemberships.length} membresía{availableGroupMemberships.length > 1 ? 's' : ''} disponible{availableGroupMemberships.length > 1 ? 's' : ''} con capacidad:
+                </p>
+                <div className="mt-2 space-y-1">
+                  {availableGroupMemberships.map(m => (
+                    <div key={m.id} className="text-xs text-gray-500 dark:text-gray-400">
+                      • {m.currentCount}/{m.maxCapacity} cliente{m.maxCapacity > 1 ? 's' : ''} ({m.maxCapacity - m.currentCount} espacio{m.maxCapacity - m.currentCount > 1 ? 's' : ''} disponible{m.maxCapacity - m.currentCount > 1 ? 's' : ''})
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </label>
+          </div>
+        )}
+
+        {/* Opción para crear nueva membresía grupal */}
+        {isGroupPlan && !existingMembership && (
+          <div className="bg-gray-50 dark:bg-dark-800/30 border border-gray-200 dark:border-dark-700/30 rounded-lg p-4">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="radio"
+                name="membershipOption"
+                checked={joinExistingMembership === null}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    setJoinExistingMembership(null);
+                  }
+                }}
+                className="mt-1 w-4 h-4 accent-primary-500"
+              />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">
+                  Crear nueva membresía grupal
+                </p>
+                <p className="text-xs text-gray-600 dark:text-gray-400">
+                  Crear una nueva membresía y seleccionar los clientes que la compartirán
+                </p>
+              </div>
+            </label>
+          </div>
+        )}
+        
+        {/* Selector de clientes para planes grupales (solo si se crea nueva) */}
+        {isGroupPlan && joinExistingMembership === null && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Seleccionar clientes ({selectedClientIds.length}/{maxCapacity}) *
+            </label>
+            <div className="max-h-48 overflow-y-auto border border-gray-300 dark:border-dark-700 rounded-lg p-2 space-y-2">
+              {clients
+                .filter(c => c.status === 'active')
+                .map(client => (
+                  <label
+                    key={client.id}
+                    className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors ${
+                      selectedClientIds.includes(client.id)
+                        ? 'bg-primary-500/20 border border-primary-500/50'
+                        : 'hover:bg-gray-100 dark:hover:bg-dark-800/50'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedClientIds.includes(client.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          if (selectedClientIds.length >= maxCapacity) {
+                            setError(`Este plan permite máximo ${maxCapacity} cliente(s)`);
+                            return;
+                          }
+                          setSelectedClientIds([...selectedClientIds, client.id]);
+                        } else {
+                          // No permitir deseleccionar si solo queda uno
+                          if (selectedClientIds.length > 1) {
+                            setSelectedClientIds(selectedClientIds.filter(id => id !== client.id));
+                          } else {
+                            setError('Debes seleccionar al menos un cliente');
+                          }
+                        }
+                        if (error) setError(null);
+                      }}
+                      className="w-4 h-4 rounded border-gray-300 dark:border-dark-600 bg-white dark:bg-dark-800 accent-primary-500"
+                      disabled={isSubmitting}
+                    />
+                    <span className="text-sm text-gray-900 dark:text-gray-100">{client.name}</span>
+                    {client.email && (
+                      <span className="text-xs text-gray-500 dark:text-gray-400">({client.email})</span>
+                    )}
+                  </label>
+                ))}
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Selecciona hasta {maxCapacity} cliente{maxCapacity > 1 ? 's' : ''} para este plan grupal
+            </p>
+          </div>
+        )}
+        
+        {/* Fecha de inicio solo si se crea nueva membresía */}
+        {!(isGroupPlan && joinExistingMembership) && (
+          <Input
+            label="Fecha de inicio *"
+            type="date"
+            value={formData.startDate}
+            onChange={(e) => {
+              setFormData({ ...formData, startDate: e.target.value });
+              if (error) setError(null);
+            }}
+            required
+            disabled={isSubmitting}
+          />
+        )}
         <div className="flex justify-end gap-3 pt-4">
           <Button 
             type="button" 
@@ -2035,6 +2314,7 @@ function PaymentModal({
         type,
         amountOwed: paymentStatus.totalOwed,
         monthsOwed: paymentStatus.monthsOwed,
+        daysOwed: paymentStatus.daysOwed || (paymentStatus.monthsOwed * type.durationDays),
         isUpToDate: paymentStatus.isUpToDate,
         nextPaymentMonth: paymentStatus.nextPaymentMonth,
       };
@@ -2044,6 +2324,7 @@ function PaymentModal({
       type: import('@/types').MembershipType;
       amountOwed: number;
       monthsOwed: number;
+      daysOwed: number;
       isUpToDate: boolean;
       nextPaymentMonth: string | null;
     }>;
@@ -2382,8 +2663,8 @@ function PaymentModal({
           {/* Columna izquierda: Selección */}
           <div className="space-y-4">
             {/* Info del cliente - Compacta */}
-            <div className="bg-gray-50 dark:bg-dark-750 p-3 rounded-lg">
-              <p className="text-xs text-gray-600 dark:text-dark-400 mb-1">Cliente</p>
+            <div className="bg-gray-50 dark:bg-dark-800/50 p-3 rounded-lg border border-gray-200 dark:border-dark-700">
+              <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Cliente</p>
               <p className="text-lg font-bold text-gray-900 dark:text-gray-100">{client.name}</p>
               <div className="mt-1.5 flex items-center gap-2">
                 {activeMemberships.length > 1 && (
@@ -2611,21 +2892,21 @@ function PaymentModal({
           {/* Columna derecha: Resumen del pago - Prominente */}
           <div className={`p-5 rounded-lg border-2 ${
             selectedMembership && selectedMembership.isUpToDate 
-              ? 'bg-success-500/10 border-success-500/30' 
-              : 'bg-warning-500/10 border-warning-500/30'
+              ? 'bg-success-500/10 dark:bg-success-500/20 border-success-500/30 dark:border-success-500/50' 
+              : 'bg-warning-500/10 dark:bg-warning-500/20 border-warning-500/30 dark:border-warning-500/50'
           }`}>
-            <p className="text-xs text-gray-600 dark:text-dark-400 mb-3 text-center uppercase tracking-wide">
+            <p className="text-xs text-gray-600 dark:text-gray-400 mb-3 text-center uppercase tracking-wide">
               {selectedMembership && selectedMembership.isUpToDate ? 'Resumen del pago adelantado' : 'Resumen del pago'}
             </p>
             <div className="text-center space-y-3">
               <div>
-                <p className="text-xs text-gray-600 dark:text-dark-400 mb-1">Membresía</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Membresía</p>
                 <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
                   {selectedMembership.type.name}
                 </p>
               </div>
               <div>
-                <p className="text-xs text-gray-600 dark:text-dark-400 mb-1">
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">
                   {selectedMembership.amountOwed > 0 
                     ? 'Deuda pendiente' 
                     : selectedMembership.isUpToDate && monthsToPay && typeof monthsToPay === 'number'
@@ -2633,23 +2914,49 @@ function PaymentModal({
                     : 'Mes adelantado'}
                 </p>
                 <p className="text-base font-semibold text-gray-700 dark:text-gray-200">
-                  {selectedMembership.amountOwed > 0 
-                    ? `${selectedMembership.monthsOwed} ${selectedMembership.monthsOwed === 1 ? 'mes' : 'meses'}`
-                    : selectedMembership.isUpToDate && monthsToPay && typeof monthsToPay === 'number'
-                    ? `${monthsToPay} ${monthsToPay === 1 ? 'mes' : 'meses'}`
-                    : '1 mes'}
+                  {(() => {
+                    if (selectedMembership.amountOwed > 0) {
+                      // Mostrar días totales adeudados
+                      const daysOwed = selectedMembership.daysOwed || (selectedMembership.monthsOwed * selectedMembership.type.durationDays);
+                      if (daysOwed >= 365) {
+                        const years = Math.floor(daysOwed / 365);
+                        const remainingDays = daysOwed % 365;
+                        if (remainingDays === 0) {
+                          return `${years} ${years === 1 ? 'año' : 'años'}`;
+                        } else {
+                          return `${years} ${years === 1 ? 'año' : 'años'} y ${remainingDays} ${remainingDays === 1 ? 'día' : 'días'}`;
+                        }
+                      }
+                      return `${daysOwed} ${daysOwed === 1 ? 'día' : 'días'}`;
+                    }
+                    if (selectedMembership.isUpToDate && monthsToPay && typeof monthsToPay === 'number') {
+                      const daysToPay = monthsToPay * selectedMembership.type.durationDays;
+                      if (daysToPay >= 365) {
+                        const years = Math.floor(daysToPay / 365);
+                        const remainingDays = daysToPay % 365;
+                        if (remainingDays === 0) {
+                          return `${years} ${years === 1 ? 'año' : 'años'}`;
+                        } else {
+                          return `${years} ${years === 1 ? 'año' : 'años'} y ${remainingDays} ${remainingDays === 1 ? 'día' : 'días'}`;
+                        }
+                      }
+                      return `${daysToPay} ${daysToPay === 1 ? 'día' : 'días'}`;
+                    }
+                    const daysDefault = selectedMembership.type.durationDays;
+                    return `${daysDefault} ${daysDefault === 1 ? 'día' : 'días'}`;
+                  })()}
                 </p>
               </div>
               <div className={`pt-3 border-t ${
                 selectedMembership && selectedMembership.isUpToDate 
-                  ? 'border-success-500/20' 
-                  : 'border-warning-500/20'
+                  ? 'border-success-500/20 dark:border-success-500/40' 
+                  : 'border-warning-500/20 dark:border-warning-500/40'
               }`}>
-                <p className="text-xs text-gray-600 dark:text-dark-400 mb-1">Total</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Total</p>
                 <p className={`text-4xl font-bold ${
                   selectedMembership && selectedMembership.isUpToDate 
-                    ? 'text-success-400' 
-                    : 'text-warning-400'
+                    ? 'text-success-500 dark:text-success-400' 
+                    : 'text-warning-500 dark:text-warning-400'
                 }`}>
                   ${(() => {
                     if (selectedMembership.amountOwed > 0) return selectedMembership.amountOwed.toLocaleString();

@@ -14,6 +14,14 @@ export interface PaymentStatus {
   lastPaymentDate: Date | null;
   lastPaymentMonth: string | null;
   nextPaymentMonth: string | null;
+  // Información sobre la duración del plan para mostrar textos correctos
+  periodLabel?: string; // "día", "días", "mes", "meses", etc.
+  periodLabelSingular?: string; // "día", "mes", etc.
+  periodLabelPlural?: string; // "días", "meses", etc.
+  // Días totales adeudados (períodos * duración del plan)
+  daysOwed?: number;
+  // Etiqueta para días adeudados (días, año, años)
+  daysOwedLabel?: string;
 }
 
 /**
@@ -37,6 +45,11 @@ export function calculatePaymentStatus(
       lastPaymentDate: null,
       lastPaymentMonth: null,
       nextPaymentMonth: null,
+      periodLabel: 'mes',
+      periodLabelSingular: 'mes',
+      periodLabelPlural: 'meses',
+      daysOwed: 0,
+      daysOwedLabel: 'días',
     };
   }
 
@@ -99,6 +112,10 @@ export function calculatePaymentStatus(
   const monthsPaid = paidMonths.size;
   const totalOwed = monthsOwed * membershipType.price;
 
+  // Calcular días totales adeudados (períodos * duración del plan)
+  const durationDays = membershipType.durationDays;
+  const daysOwed = monthsOwed * durationDays;
+
   // Calcular próximo mes de pago
   let nextPaymentMonth: string | null = null;
   if (owedMonths.length > 0) {
@@ -121,6 +138,18 @@ export function calculatePaymentStatus(
     ? parseISO(`${nextPaymentMonth}-01`)
     : null;
 
+  // Determinar las etiquetas según la duración del plan
+  const { singular: periodLabelSingular, plural: periodLabelPlural } = getPeriodLabels(durationDays);
+  const periodLabel = monthsOwed === 1 ? periodLabelSingular : periodLabelPlural;
+
+  // Determinar etiqueta para días adeudados
+  let daysOwedLabel = 'días';
+  if (daysOwed >= 365) {
+    daysOwedLabel = Math.floor(daysOwed / 365) === 1 ? 'año' : 'años';
+  } else if (daysOwed === 1) {
+    daysOwedLabel = 'día';
+  }
+
   return {
     isUpToDate: monthsOwed === 0,
     isOverdue: monthsOwed > 0,
@@ -131,6 +160,11 @@ export function calculatePaymentStatus(
     lastPaymentDate: lastPayment ? new Date(lastPayment.paymentDate) : null,
     lastPaymentMonth: lastPayment?.paymentMonth || (lastPayment ? format(new Date(lastPayment.paymentDate), 'yyyy-MM') : null),
     nextPaymentMonth,
+    periodLabel,
+    periodLabelSingular,
+    periodLabelPlural,
+    daysOwed,
+    daysOwedLabel,
   };
 }
 
@@ -169,6 +203,30 @@ export function formatMonth(month: string): string {
   const monthIndex = date.getMonth();
   const year = date.getFullYear();
   return `${monthNames[monthIndex]} ${year}`;
+}
+
+/**
+ * Obtiene las etiquetas de período según la duración del plan
+ */
+export function getPeriodLabels(durationDays: number): {
+  singular: string;
+  plural: string;
+} {
+  if (durationDays === 1) {
+    return { singular: 'día', plural: 'día' };
+  } else if (durationDays < 7) {
+    return { singular: 'día', plural: 'días' };
+  } else if (durationDays === 7) {
+    return { singular: 'semana', plural: 'semanas' };
+  } else if (durationDays < 30) {
+    return { singular: 'día', plural: 'días' };
+  } else if (durationDays === 30) {
+    return { singular: 'mes', plural: 'meses' };
+  } else if (durationDays < 60) {
+    return { singular: 'día', plural: 'días' };
+  } else {
+    return { singular: 'mes', plural: 'meses' };
+  }
 }
 
 /**
@@ -237,6 +295,7 @@ export function calculateTotalOverdueDebt(
 
   return totalDebt;
 }
+
 
 
 

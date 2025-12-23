@@ -83,6 +83,7 @@ export interface Database {
           description: string | null
           includes: Json
           restrictions: Json
+          max_capacity: number | null
           is_active: boolean
           is_featured: boolean
           sort_order: number
@@ -92,11 +93,21 @@ export interface Database {
         Insert: Omit<Database['public']['Tables']['membership_types']['Row'], 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Database['public']['Tables']['membership_types']['Insert']>
       }
+      membership_clients: {
+        Row: {
+          id: string
+          membership_id: string
+          client_id: string
+          created_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['membership_clients']['Row'], 'id' | 'created_at'>
+        Update: Partial<Database['public']['Tables']['membership_clients']['Insert']>
+      }
       memberships: {
         Row: {
           id: string
           gym_id: string
-          client_id: string
+          client_id: string | null
           membership_type_id: string
           start_date: string
           end_date: string
