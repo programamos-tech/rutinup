@@ -132,7 +132,7 @@ export default function HomePage() {
               </div>
               <p className="text-xs sm:text-sm text-white mt-4 sm:mt-6 animate-fade-in-up flex flex-wrap items-center justify-center gap-1 sm:gap-2 px-4" style={{ animationDelay: '1s' }}>
                 <Flame className="w-3 sm:w-4 h-3 sm:h-4 text-accent-400 flex-shrink-0" />
-                <span className="text-center">Oferta fundadores: $99.000/mes • Plan Starter • Luego $129.000/mes</span>
+                <span className="text-center">Oferta fundadores: $99.000/mes • Plan Starter • Plan Pro desde $129.000/mes</span>
               </p>
             </div>
           </div>
