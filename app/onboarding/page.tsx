@@ -519,7 +519,7 @@ export default function OnboardingPage() {
       console.log('✅ Métodos de pago guardados en BD:', updatedData?.payment_methods);
       
       // Redirigir a dashboard
-      router.push('/payments');
+      router.push('/dashboard');
     } catch (error) {
       console.error('Error inesperado al guardar métodos de pago:', error);
       alert('Error inesperado al guardar');
