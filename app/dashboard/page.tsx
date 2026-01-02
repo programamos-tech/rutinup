@@ -11,7 +11,14 @@ import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { useApp } from '@/context/AppContext';
 import { Payment, Client, Membership } from '@/types';
-import { format, subDays, startOfDay } from 'date-fns';
+import { format, subDays, startOfDay, endOfDay, startOfWeek, endOfWeek, isWithinInterval, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths, isSameDay, isSameMonth } from 'date-fns';
+import { es } from 'date-fns/locale';
+
+// Helper para parsear fechas sin problemas de zona horaria
+const parseDateFromInput = (dateString: string): Date => {
+  const [year, month, day] = dateString.split('-').map(Number);
+  return new Date(year, month - 1, day);
+};
 import { formatPrice } from '@/utils/format';
 import { 
   Plus, 
@@ -26,6 +33,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  Calendar,
 } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend, Label } from 'recharts';
 
@@ -88,11 +96,16 @@ export default function MembershipPaymentsPage() {
 
   // Estados para filtros de fecha
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [viewMode, setViewMode] = useState<'day' | 'year'>('year'); // 'day' o 'year'
+  const [viewMode, setViewMode] = useState<'year' | 'date'>('year'); // 'year' o 'date' (día o rango)
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [dateRangeStart, setDateRangeStart] = useState<Date | null>(null);
+  const [dateRangeEnd, setDateRangeEnd] = useState<Date | null>(null);
+  const [selectedDates, setSelectedDates] = useState<Date[]>([]); // Para selección múltiple
+  const [calendarMonth, setCalendarMonth] = useState<Date>(new Date()); // Mes del calendario
   const [filteredPayments, setFilteredPayments] = useState<Payment[]>([]);
   const [yearlyPayments, setYearlyPayments] = useState<Payment[]>([]);
   const [isLoadingPayments, setIsLoadingPayments] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(false);
   const currentYear = new Date().getFullYear();
 
   // Búsqueda de clientes
@@ -181,10 +194,10 @@ export default function MembershipPaymentsPage() {
       .sort((a, b) => b!.monthsOwed - a!.monthsOwed); // Ordenar por meses adeudados
   }, [clients, memberships, membershipTypes, payments]);
 
-  // Cargar pagos filtrados cuando cambia la fecha seleccionada
+  // Cargar pagos filtrados cuando cambia la fecha seleccionada (modo día)
   useEffect(() => {
     const loadFilteredPayments = async () => {
-      if (selectedDate) {
+      if (viewMode === 'date' && selectedDate) {
         setIsLoadingPayments(true);
         try {
           const datePayments = await getPaymentsByDate(selectedDate);
@@ -201,7 +214,80 @@ export default function MembershipPaymentsPage() {
     };
 
     loadFilteredPayments();
-  }, [selectedDate, getPaymentsByDate]);
+  }, [viewMode, selectedDate, getPaymentsByDate]);
+
+  // Filtrar pagos por rango de fechas (usando selectedDates o dateRangeStart/End)
+  const rangePayments = useMemo(() => {
+    // Si hay fechas seleccionadas individualmente, usarlas
+    if (selectedDates.length > 0) {
+      const selectedDatesSet = new Set(selectedDates.map(d => format(startOfDay(d), 'yyyy-MM-dd')));
+      return payments.filter(p => {
+        if (p.status !== 'completed') return false;
+        const paymentDate = p.paymentDate instanceof Date 
+          ? p.paymentDate 
+          : new Date(p.paymentDate);
+        const paymentDateStr = format(startOfDay(paymentDate), 'yyyy-MM-dd');
+        return selectedDatesSet.has(paymentDateStr);
+      });
+    }
+    
+    // Si hay rango de fechas, usarlo
+    if (dateRangeStart && dateRangeEnd) {
+      const start = startOfDay(dateRangeStart);
+      const end = endOfDay(dateRangeEnd);
+      
+      return payments.filter(p => {
+        if (p.status !== 'completed') return false;
+        const paymentDate = p.paymentDate instanceof Date 
+          ? p.paymentDate 
+          : new Date(p.paymentDate);
+        const paymentDateStart = startOfDay(paymentDate);
+        return isWithinInterval(paymentDateStart, { start, end });
+      });
+    }
+    
+    return [];
+  }, [payments, selectedDates, dateRangeStart, dateRangeEnd]);
+  
+  // En modo date: actualizar selectedDates cuando cambian dateRangeStart y dateRangeEnd
+  useEffect(() => {
+    if (viewMode === 'date') {
+      // Si hay rango (inicio y fin), calcular selectedDates desde el rango
+      if (dateRangeStart && dateRangeEnd) {
+        const start = startOfDay(dateRangeStart);
+        const end = startOfDay(dateRangeEnd);
+        const sortedStart = start < end ? start : end;
+        const sortedEnd = start < end ? end : start;
+        const range = eachDayOfInterval({ start: sortedStart, end: sortedEnd });
+        const rangeDates = range.map(d => startOfDay(d));
+        // Solo actualizar si es diferente para evitar loops
+        const currentDatesStr = selectedDates.map(d => format(d, 'yyyy-MM-dd')).sort().join(',');
+        const newDatesStr = rangeDates.map(d => format(d, 'yyyy-MM-dd')).sort().join(',');
+        if (currentDatesStr !== newDatesStr) {
+          setSelectedDates(rangeDates);
+        }
+        // Si es el mismo día, establecer selectedDate también (pero no cerrar el calendario)
+        if (isSameDay(sortedStart, sortedEnd)) {
+          setSelectedDate(sortedStart);
+        } else {
+          setSelectedDate(null);
+        }
+      } else if (dateRangeStart) {
+        // Solo hay inicio, establecer selectedDate
+        const startDate = startOfDay(dateRangeStart);
+        setSelectedDate(startDate);
+        if (selectedDates.length !== 1 || !isSameDay(selectedDates[0], startDate)) {
+          setSelectedDates([startDate]);
+        }
+      } else {
+        // No hay selección
+        setSelectedDate(null);
+        if (selectedDates.length > 0) {
+          setSelectedDates([]);
+        }
+      }
+    }
+  }, [viewMode, dateRangeStart, dateRangeEnd]);
 
   // Cargar pagos del año seleccionado
   useEffect(() => {
@@ -223,8 +309,57 @@ export default function MembershipPaymentsPage() {
     }
   }, [selectedYear, gym?.id, getPaymentsByYear, viewMode]);
 
-  // Calcular métricas según el modo de vista (día o año)
+  // Calcular métricas según el modo de vista (año o date - día/rango)
   const displayMetrics = useMemo(() => {
+    // Si el modo es 'date' y hay rango (inicio y fin diferentes), usar pagos del rango
+    if (viewMode === 'date' && dateRangeStart && dateRangeEnd && !isSameDay(dateRangeStart, dateRangeEnd)) {
+      const rangePaymentsFiltered = rangePayments.filter(p => p.status === 'completed');
+      
+      const total = rangePaymentsFiltered.reduce((sum, p) => {
+        if (p.splitPayment) {
+          return sum + p.splitPayment.cash + p.splitPayment.transfer;
+        }
+        return sum + p.amount;
+      }, 0);
+
+      const cash = rangePaymentsFiltered.reduce((sum, p) => {
+        if (p.splitPayment) return sum + p.splitPayment.cash;
+        if (p.method === 'cash') return sum + p.amount;
+        return sum;
+      }, 0);
+
+      const transfer = rangePaymentsFiltered.reduce((sum, p) => {
+        if (p.splitPayment) return sum + p.splitPayment.transfer;
+        if (p.method === 'transfer') return sum + p.amount;
+        return sum;
+      }, 0);
+
+      const cashPaymentsCount = rangePaymentsFiltered.filter(p => {
+        if (p.splitPayment) return p.splitPayment.cash > 0;
+        return p.method === 'cash';
+      }).length;
+
+      const transferPaymentsCount = rangePaymentsFiltered.filter(p => {
+        if (p.splitPayment) return p.splitPayment.transfer > 0;
+        return p.method === 'transfer';
+      }).length;
+
+      const startLabel = format(dateRangeStart, 'dd/MM/yyyy');
+      const endLabel = format(dateRangeEnd, 'dd/MM/yyyy');
+      const isSameDay = format(dateRangeStart, 'yyyy-MM-dd') === format(dateRangeEnd, 'yyyy-MM-dd');
+      
+      return {
+        total,
+        cash,
+        transfer,
+        count: rangePaymentsFiltered.length,
+        cashPaymentsCount,
+        transferPaymentsCount,
+        label: isSameDay ? `Total del ${startLabel}` : `Total del ${startLabel} al ${endLabel}`,
+        subtitle: `${rangePaymentsFiltered.length} pagos | Efectivo: ${formatPrice(cash)} | Transferencia: ${formatPrice(transfer)}`
+      };
+    }
+    
     // Si el modo es 'year', usar pagos del año
     if (viewMode === 'year') {
       const yearPayments = yearlyPayments.filter(p => p.status === 'completed');
@@ -270,8 +405,55 @@ export default function MembershipPaymentsPage() {
       };
     }
     
-    // Si el modo es 'day', usar pagos del día seleccionado o del día actual
-    const paymentsToUse = selectedDate ? filteredPayments : payments.filter(p => {
+    // Si el modo es 'date' y hay una sola fecha (día), usar pagos del día seleccionado
+    if (viewMode === 'date' && selectedDate) {
+      const dayPayments = filteredPayments.filter(p => p.status === 'completed');
+
+      const total = dayPayments.reduce((sum, p) => {
+        if (p.splitPayment) {
+          return sum + p.splitPayment.cash + p.splitPayment.transfer;
+        }
+        return sum + p.amount;
+      }, 0);
+
+      const cash = dayPayments.reduce((sum, p) => {
+        if (p.splitPayment) return sum + p.splitPayment.cash;
+        if (p.method === 'cash') return sum + p.amount;
+        return sum;
+      }, 0);
+
+      const transfer = dayPayments.reduce((sum, p) => {
+        if (p.splitPayment) return sum + p.splitPayment.transfer;
+        if (p.method === 'transfer') return sum + p.amount;
+        return sum;
+      }, 0);
+
+      const cashPaymentsCount = dayPayments.filter(p => {
+        if (p.splitPayment) return p.splitPayment.cash > 0;
+        return p.method === 'cash';
+      }).length;
+
+      const transferPaymentsCount = dayPayments.filter(p => {
+        if (p.splitPayment) return p.splitPayment.transfer > 0;
+        return p.method === 'transfer';
+      }).length;
+
+      const dateLabel = format(selectedDate, 'dd/MM/yyyy', { locale: es });
+
+      return {
+        total,
+        cash,
+        transfer,
+        count: dayPayments.length,
+        cashPaymentsCount,
+        transferPaymentsCount,
+        label: `Total del ${dateLabel}`,
+        subtitle: `${dayPayments.length} pagos (Membresías + Tienda)`
+      };
+    }
+    
+    // Si no hay selección de fecha, usar pagos del día actual
+    const paymentsToUse = payments.filter(p => {
       const today = new Date();
       const todayStr = format(today, 'yyyy-MM-dd');
       const paymentDateStr = format(p.paymentDate, 'yyyy-MM-dd');
@@ -323,7 +505,7 @@ export default function MembershipPaymentsPage() {
       label: `Total del ${dateLabel}`,
       subtitle: `${dayPayments.length} pagos (Membresías + Tienda)`
     };
-  }, [payments, selectedDate, filteredPayments, viewMode, yearlyPayments, selectedYear]);
+  }, [payments, selectedDate, filteredPayments, viewMode, yearlyPayments, selectedYear, rangePayments, dateRangeStart, dateRangeEnd]);
 
   // Calcular número de clientes con deuda pendiente
   const clientsWithDebtCount = useMemo(() => {
@@ -558,7 +740,7 @@ export default function MembershipPaymentsPage() {
         }
         return b.amountOwed - a.amountOwed;
       })
-      .slice(0, 10); // Top 10
+      .slice(0, 5); // Top 5
   }, [clients, memberships, membershipTypes, payments]);
 
   // 4. Mejores clientes (por total pagado histórico, excluyendo los que tienen deuda)
@@ -634,7 +816,7 @@ export default function MembershipPaymentsPage() {
 
     return Object.values(clientTotals)
       .sort((a, b) => b.totalPaid - a.totalPaid)
-      .slice(0, 10) // Top 10
+      .slice(0, 5) // Top 5
       .map(item => ({
         name: item.name,
         totalPaid: item.totalPaid,
@@ -856,80 +1038,216 @@ export default function MembershipPaymentsPage() {
             <p className="text-gray-600 dark:text-gray-400 mt-1">Métricas, ingresos e información general de tu gimnasio</p>
           </div>
           <div className="flex items-center gap-3">
-            {/* Selector de modo de vista */}
-            <div className="flex items-center gap-2">
+            {/* Selector de año */}
+            <div className="flex items-center gap-1 bg-gray-100 dark:bg-dark-800/50 rounded-lg p-1 border border-gray-200 dark:border-dark-700">
               <Button
                 variant={viewMode === 'year' ? 'primary' : 'secondary'}
                 size="sm"
                 onClick={() => {
                   setViewMode('year');
                   setSelectedDate(null);
+                  setDateRangeStart(null);
+                  setDateRangeEnd(null);
+                  setSelectedDates([]);
+                  setShowCalendar(false);
                 }}
-                className="whitespace-nowrap min-w-[100px]"
+                className="whitespace-nowrap px-3"
               >
-                Ver Año
-              </Button>
-              {viewMode === 'year' && (
-                <Input
-                  type="number"
-                  value={selectedYear}
-                  onChange={(e) => {
-                    const year = parseInt(e.target.value);
-                    if (year >= 2000 && year <= 2100) {
-                      setSelectedYear(year);
-                    }
-                  }}
-                  min="2000"
-                  max="2100"
-                  className="w-20 text-center"
-                />
-              )}
-              <Button
-                variant={viewMode === 'day' ? 'primary' : 'secondary'}
-                size="sm"
-                onClick={() => setViewMode('day')}
-                className="whitespace-nowrap min-w-[100px]"
-              >
-                Ver Día
+                Año
               </Button>
             </div>
-            {/* Filtro por fecha - Solo visible en modo día */}
-            {viewMode === 'day' && (
-              <div className="flex items-center gap-2">
-                <div className="relative">
-                  <Input
-                    type="date"
-                    value={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : ''}
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        setSelectedDate(new Date(e.target.value));
-                      } else {
-                        setSelectedDate(null);
-                      }
-                    }}
-                    onClick={(e) => {
-                      // Asegurar que el calendario se abra al hacer clic en cualquier parte
-                      const input = e.target as HTMLInputElement;
-                      if (input && input.showPicker) {
-                        input.showPicker();
-                      }
-                    }}
-                    className="w-40 cursor-pointer"
-                  />
-                </div>
-                {selectedDate && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => setSelectedDate(null)}
-                    className="flex items-center gap-1"
-                  >
-                    <X className="w-3 h-3" />
-                    Limpiar
-                  </Button>
-                )}
-              </div>
+
+            {/* Selector de año - input numérico */}
+            {viewMode === 'year' && (
+              <Input
+                type="number"
+                value={selectedYear}
+                onChange={(e) => {
+                  const year = parseInt(e.target.value);
+                  if (year >= 2000 && year <= 2100) {
+                    setSelectedYear(year);
+                  }
+                }}
+                min="2000"
+                max="2100"
+                className="w-24 text-center"
+              />
             )}
+
+            {/* Botón de calendario (día o rango) */}
+            <div className="relative">
+              <div className="flex items-center gap-1 bg-gray-100 dark:bg-dark-800/50 rounded-lg p-1 border border-gray-200 dark:border-dark-700">
+                <Button
+                  variant={viewMode === 'date' ? 'primary' : 'secondary'}
+                  size="sm"
+                  onClick={() => {
+                    setViewMode('date');
+                    setShowCalendar(!showCalendar);
+                  }}
+                  className="whitespace-nowrap px-3 flex items-center gap-2"
+                >
+                  <Calendar className="w-4 h-4" />
+                  {dateRangeStart && dateRangeEnd && !isSameDay(dateRangeStart, dateRangeEnd)
+                    ? (() => {
+                        // Asegurar que el inicio sea menor que el fin
+                        const start = dateRangeStart < dateRangeEnd ? dateRangeStart : dateRangeEnd;
+                        const end = dateRangeStart < dateRangeEnd ? dateRangeEnd : dateRangeStart;
+                        return `${format(start, 'dd/MM', { locale: es })} - ${format(end, 'dd/MM', { locale: es })}`;
+                      })()
+                    : selectedDate
+                    ? format(selectedDate, 'dd/MM/yyyy', { locale: es })
+                    : 'Seleccionar fecha'
+                  }
+                </Button>
+              </div>
+
+              {/* Calendario (se muestra cuando viewMode es 'date') */}
+              {viewMode === 'date' && showCalendar && (
+                <div className="absolute top-full right-0 mt-2 z-50 bg-white dark:bg-dark-800 border border-gray-200 dark:border-dark-700 rounded-lg shadow-xl p-4 w-[320px]">
+                  {/* Calendario */}
+                  <div className="space-y-4">
+                    {/* Header del calendario */}
+                    <div className="flex items-center justify-between">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => setCalendarMonth(subMonths(calendarMonth, 1))}
+                          className="p-1.5"
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                        </Button>
+                        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-50">
+                          {format(calendarMonth, 'MMMM yyyy', { locale: es })}
+                        </h3>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => setCalendarMonth(addMonths(calendarMonth, 1))}
+                          className="p-1.5"
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </Button>
+                    </div>
+                    
+                    {/* Días de la semana */}
+                    <div className="grid grid-cols-7 gap-1">
+                        {['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map(day => (
+                          <div key={day} className="text-center text-xs font-medium text-gray-500 dark:text-gray-400 py-1">
+                            {day}
+                          </div>
+                        ))}
+                    </div>
+                    
+                    {/* Días del mes */}
+                    <div className="grid grid-cols-7 gap-1">
+                        {(() => {
+                          const monthStart = startOfMonth(calendarMonth);
+                          const monthEnd = endOfMonth(calendarMonth);
+                          const startDate = startOfWeek(monthStart, { weekStartsOn: 0 });
+                          const endDate = endOfWeek(monthEnd, { weekStartsOn: 0 });
+                          const days = eachDayOfInterval({ start: startDate, end: endDate });
+                          
+                          // Calcular rango si hay inicio y fin
+                          const rangeStart = dateRangeStart ? startOfDay(dateRangeStart) : null;
+                          const rangeEnd = dateRangeEnd ? startOfDay(dateRangeEnd) : null;
+                          const sortedStart = rangeStart && rangeEnd ? (rangeStart < rangeEnd ? rangeStart : rangeEnd) : rangeStart;
+                          const sortedEnd = rangeStart && rangeEnd ? (rangeStart < rangeEnd ? rangeEnd : rangeStart) : rangeEnd;
+                          
+                          return days.map((day, idx) => {
+                            const isCurrentMonth = isSameMonth(day, calendarMonth);
+                            const dayStart = startOfDay(day);
+                            const isToday = isSameDay(day, new Date());
+                            
+                            // Verificar si es fecha de inicio o fin
+                            const isStartDate = sortedStart && isSameDay(dayStart, sortedStart);
+                            const isEndDate = sortedEnd && isSameDay(dayStart, sortedEnd);
+                            
+                            // Verificar si está en el rango (fechas intermedias)
+                            const isInRange = sortedStart && sortedEnd && 
+                              dayStart.getTime() > sortedStart.getTime() && 
+                              dayStart.getTime() < sortedEnd.getTime();
+                            
+                            return (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => {
+                                  const clickedDay = startOfDay(day);
+                                  
+                                  // Si no hay fecha de inicio, establecerla (permitir cualquier mes)
+                                  if (!rangeStart) {
+                                    setDateRangeStart(clickedDay);
+                                    setDateRangeEnd(null);
+                                  } 
+                                  // Si hay inicio pero no fin, establecer fin
+                                  else if (rangeStart && !rangeEnd) {
+                                    if (isSameDay(clickedDay, rangeStart)) {
+                                      // Si hace clic en la misma fecha, establecer como día único
+                                      setDateRangeStart(clickedDay);
+                                      setDateRangeEnd(clickedDay);
+                                    } else {
+                                      // Establecer fin y ordenar correctamente (inicio < fin)
+                                      const start = rangeStart < clickedDay ? rangeStart : clickedDay;
+                                      const end = rangeStart < clickedDay ? clickedDay : rangeStart;
+                                      setDateRangeStart(start);
+                                      setDateRangeEnd(end);
+                                    }
+                                  }
+                                  // Si ya hay inicio y fin, reemplazar
+                                  else {
+                                    setDateRangeStart(clickedDay);
+                                    setDateRangeEnd(null);
+                                  }
+                                }}
+                                className={`
+                                  w-9 h-9 text-xs rounded-md flex items-center justify-center
+                                  ${isCurrentMonth ? 'text-gray-900 dark:text-gray-100' : 'text-gray-400 dark:text-gray-600'}
+                                  ${isStartDate || isEndDate
+                                    ? 'bg-primary-500 text-white font-semibold' 
+                                    : isInRange
+                                    ? 'bg-primary-200 dark:bg-primary-900/50 text-primary-900 dark:text-primary-100'
+                                    : 'hover:bg-gray-100 dark:hover:bg-dark-700'
+                                  }
+                                  ${isToday && !isStartDate && !isEndDate && !isInRange ? 'ring-2 ring-primary-500' : ''}
+                                  transition-colors
+                                `}
+                              >
+                                {format(day, 'd')}
+                              </button>
+                            );
+                          });
+                        })()}
+                    </div>
+                    
+                    {/* Botones de acción */}
+                    <div className="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-dark-700">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => {
+                            setDateRangeStart(null);
+                            setDateRangeEnd(null);
+                            setSelectedDates([]);
+                          }}
+                          className="text-xs px-3 py-1.5"
+                        >
+                          Limpiar
+                        </Button>
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => {
+                            setShowCalendar(false);
+                          }}
+                          className="text-xs px-3 py-1.5"
+                        >
+                          Aplicar
+                        </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
