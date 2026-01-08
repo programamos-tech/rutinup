@@ -123,6 +123,7 @@ export interface Membership {
   membershipType?: MembershipType;
   startDate: Date;
   endDate: Date;
+  billingStartDate?: Date; // Fecha de inicio de cobro. Si no se especifica, se usa startDate
   status: 'active' | 'expired' | 'upcoming_expiry';
   // Para membresías grupales
   clients?: Client[]; // Clientes asociados a esta membresía

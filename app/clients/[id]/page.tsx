@@ -1920,6 +1920,7 @@ function MembershipModal({ isOpen, onClose, clientId, onSuccess }: any) {
   const [formData, setFormData] = useState({
     membershipTypeId: '',
     startDate: new Date().toISOString().split('T')[0],
+    billingStartDate: '', // Fecha de inicio de cobro (opcional)
     method: 'cash',
     amount: 0,
     notes: '',
@@ -2051,6 +2052,7 @@ function MembershipModal({ isOpen, onClose, clientId, onSuccess }: any) {
           membershipTypeId: formData.membershipTypeId,
           startDate,
           endDate,
+          billingStartDate: formData.billingStartDate ? new Date(formData.billingStartDate) : undefined,
           status: 'active',
         });
       }
@@ -2059,6 +2061,7 @@ function MembershipModal({ isOpen, onClose, clientId, onSuccess }: any) {
       setFormData({
         membershipTypeId: '',
         startDate: new Date().toISOString().split('T')[0],
+        billingStartDate: '',
         method: 'cash',
         amount: 0,
         notes: '',
@@ -2238,17 +2241,34 @@ function MembershipModal({ isOpen, onClose, clientId, onSuccess }: any) {
         
         {/* Fecha de inicio solo si se crea nueva membresía */}
         {!(isGroupPlan && joinExistingMembership) && (
-          <Input
-            label="Fecha de inicio *"
-            type="date"
-            value={formData.startDate}
-            onChange={(e) => {
-              setFormData({ ...formData, startDate: e.target.value });
-              if (error) setError(null);
-            }}
-            required
-            disabled={isSubmitting}
-          />
+          <div className="space-y-4">
+            <Input
+              label="Fecha de inicio de la membresía *"
+              type="date"
+              value={formData.startDate}
+              onChange={(e) => {
+                setFormData({ ...formData, startDate: e.target.value });
+                if (error) setError(null);
+              }}
+              required
+              disabled={isSubmitting}
+            />
+            <div>
+              <Input
+                label="Fecha de inicio de cobro (opcional)"
+                type="date"
+                value={formData.billingStartDate}
+                onChange={(e) => {
+                  setFormData({ ...formData, billingStartDate: e.target.value });
+                  if (error) setError(null);
+                }}
+                disabled={isSubmitting}
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
+                Desde cuándo empezar a calcular los períodos de pago. Si no se especifica, se usa la fecha de inicio de la membresía.
+              </p>
+            </div>
+          </div>
         )}
         <div className="flex justify-end gap-3 pt-4">
           <Button 

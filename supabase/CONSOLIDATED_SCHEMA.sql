@@ -120,14 +120,17 @@ COMMENT ON COLUMN membership_types.suggested_template_id IS 'ID de la plantilla 
 CREATE TABLE IF NOT EXISTS memberships (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   gym_id UUID NOT NULL REFERENCES gyms(id) ON DELETE CASCADE,
-  client_id UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  client_id UUID REFERENCES clients(id) ON DELETE CASCADE,
   membership_type_id UUID NOT NULL REFERENCES membership_types(id) ON DELETE RESTRICT,
   start_date DATE NOT NULL,
   end_date DATE NOT NULL,
+  billing_start_date DATE,
   status TEXT DEFAULT 'active' CHECK (status IN ('active', 'expired', 'cancelled')),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+COMMENT ON COLUMN memberships.billing_start_date IS 'Fecha de inicio de cobro. Si es NULL, se usa start_date. Los períodos de pago se calculan desde esta fecha exacta, no desde el inicio del mes.';
 
 -- =====================================================
 -- TABLA: payments
@@ -988,3 +991,5 @@ CREATE POLICY "gym_custom_services_delete_own_gym" ON gym_custom_services FOR DE
 -- =====================================================
 -- FIN DEL ESQUEMA CONSOLIDADO
 -- =====================================================
+
+

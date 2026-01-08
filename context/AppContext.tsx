@@ -870,7 +870,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             });
           }
           
-          const loadedMemberships: Membership[] = data.map((item: any) => {
+          const loadedMemberships: Membership[] = data.map((item: any) => ({
+            id: item.id,
+            clientId: item.client_id,
+            membershipTypeId: item.membership_type_id,
+            startDate: new Date(item.start_date),
+            endDate: new Date(item.end_date),
+            billingStartDate: item.billing_start_date ? new Date(item.billing_start_date) : undefined,
+            status: item.status || 'active',
+            clients: membershipClientsMap.get(item.id) || [],
+            createdAt: new Date(item.created_at),
+            updatedAt: new Date(item.updated_at),
+          }));((item: any) => {
             const associatedClients = membershipClientsMap.get(item.id) || [];
             return {
               id: item.id,
@@ -2584,6 +2595,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           membership_type_id: membershipData.membershipTypeId,
           start_date: membershipData.startDate.toISOString().split('T')[0],
           end_date: membershipData.endDate.toISOString().split('T')[0],
+          billing_start_date: membershipData.billingStartDate?.toISOString().split('T')[0] || null,
           status: membershipData.status || 'active',
         })
         .select()
@@ -2620,6 +2632,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           membershipTypeId: data.membership_type_id,
           startDate: new Date(data.start_date),
           endDate: new Date(data.end_date),
+          billingStartDate: data.billing_start_date ? new Date(data.billing_start_date) : undefined,
           status: data.status || 'active',
           createdAt: new Date(data.created_at),
           updatedAt: new Date(data.updated_at),
@@ -2753,6 +2766,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             membershipTypeId: item.membership_type_id,
             startDate: new Date(item.start_date),
             endDate: new Date(item.end_date),
+            billingStartDate: item.billing_start_date ? new Date(item.billing_start_date) : undefined,
             status: item.status || 'active',
             clients: associatedClients.length > 0 ? associatedClients : undefined,
             createdAt: new Date(item.created_at),
@@ -2788,6 +2802,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (membershipData.membershipTypeId !== undefined) updateData.membership_type_id = membershipData.membershipTypeId;
       if (membershipData.startDate !== undefined) updateData.start_date = membershipData.startDate.toISOString().split('T')[0];
       if (membershipData.endDate !== undefined) updateData.end_date = membershipData.endDate.toISOString().split('T')[0];
+      if (membershipData.billingStartDate !== undefined) updateData.billing_start_date = membershipData.billingStartDate?.toISOString().split('T')[0] || null;
       if (membershipData.status !== undefined) updateData.status = membershipData.status;
 
       const { data, error } = await (supabase.from('memberships') as any)
@@ -2808,6 +2823,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           membershipTypeId: data.membership_type_id,
           startDate: new Date(data.start_date),
           endDate: new Date(data.end_date),
+          billingStartDate: data.billing_start_date ? new Date(data.billing_start_date) : undefined,
           status: data.status || 'active',
           createdAt: new Date(data.created_at),
           updatedAt: new Date(data.updated_at),

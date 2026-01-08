@@ -1101,6 +1101,7 @@ function NewMemberModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; onClo
     notes: '',
     membershipTypeId: '',
     membershipStartDate: '',
+    billingStartDate: '', // Fecha de inicio de cobro (opcional)
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -1250,6 +1251,7 @@ function NewMemberModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; onClo
               membershipTypeId: formData.membershipTypeId,
               startDate: startDate,
               endDate: endDate,
+              billingStartDate: formData.billingStartDate ? new Date(formData.billingStartDate) : undefined,
               status: 'active',
             });
             
@@ -1280,6 +1282,7 @@ function NewMemberModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; onClo
                   notes: '',
                   membershipTypeId: '',
                   membershipStartDate: '',
+                  billingStartDate: '',
                 });
                 setSelectedClientIdsForGroup([]);
                 setClientsToCreate([]);
@@ -1623,33 +1626,56 @@ function NewMemberModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; onClo
               })()}
 
               {formData.membershipTypeId && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Fecha de inicio
-                  </label>
-                  <input
-                    type="date"
-                    value={formData.membershipStartDate}
-                    onChange={(e) => {
-                      setFormData({ ...formData, membershipStartDate: e.target.value });
-                      // Limpiar error si se selecciona una fecha
-                      if (e.target.value && errors.membershipStartDate) {
-                        setErrors({ ...errors, membershipStartDate: '' });
-                      }
-                    }}
-                    className="w-full px-4 py-2 bg-gray-100 dark:bg-dark-800 border border-gray-300 dark:border-dark-600 rounded-lg text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-0 [&::-webkit-calendar-picker-indicator]:contrast-100 [&::-moz-calendar-picker-indicator]:cursor-pointer [&::-moz-calendar-picker-indicator]:invert [&::-moz-calendar-picker-indicator]:brightness-0 [&::-moz-calendar-picker-indicator]:contrast-100"
-                    style={{
-                      filter: 'none',
-                    }}
-                    onClick={(e) => e.currentTarget.showPicker?.()}
-                  />
-                <p className="text-xs text-gray-500 dark:text-gray-500 mt-1.5">
-                  Esta fecha será la referencia para calcular el próximo cobro mensual
-                </p>
-                {errors.membershipStartDate && (
-                  <p className="text-xs text-red-400 mt-1">{errors.membershipStartDate}</p>
-                )}
-              </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Fecha de inicio de la membresía
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.membershipStartDate}
+                      onChange={(e) => {
+                        setFormData({ ...formData, membershipStartDate: e.target.value });
+                        // Limpiar error si se selecciona una fecha
+                        if (e.target.value && errors.membershipStartDate) {
+                          setErrors({ ...errors, membershipStartDate: '' });
+                        }
+                      }}
+                      className="w-full px-4 py-2 bg-gray-100 dark:bg-dark-800 border border-gray-300 dark:border-dark-600 rounded-lg text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-0 [&::-webkit-calendar-picker-indicator]:contrast-100 [&::-moz-calendar-picker-indicator]:cursor-pointer [&::-moz-calendar-picker-indicator]:invert [&::-moz-calendar-picker-indicator]:brightness-0 [&::-moz-calendar-picker-indicator]:contrast-100"
+                      style={{
+                        filter: 'none',
+                      }}
+                      onClick={(e) => e.currentTarget.showPicker?.()}
+                    />
+                    <p className="text-xs text-gray-500 dark:text-gray-500 mt-1.5">
+                      Fecha desde la cual el cliente tiene acceso al gimnasio
+                    </p>
+                    {errors.membershipStartDate && (
+                      <p className="text-xs text-red-400 mt-1">{errors.membershipStartDate}</p>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Fecha de inicio de cobro (opcional)
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.billingStartDate}
+                      onChange={(e) => {
+                        setFormData({ ...formData, billingStartDate: e.target.value });
+                      }}
+                      className="w-full px-4 py-2 bg-gray-100 dark:bg-dark-800 border border-gray-300 dark:border-dark-600 rounded-lg text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-0 [&::-webkit-calendar-picker-indicator]:contrast-100 [&::-moz-calendar-picker-indicator]:cursor-pointer [&::-moz-calendar-picker-indicator]:invert [&::-moz-calendar-picker-indicator]:brightness-0 [&::-moz-calendar-picker-indicator]:contrast-100"
+                      style={{
+                        filter: 'none',
+                      }}
+                      onClick={(e) => e.currentTarget.showPicker?.()}
+                    />
+                    <p className="text-xs text-gray-500 dark:text-gray-500 mt-1.5">
+                      Desde cuándo empezar a calcular los períodos de pago. Si no se especifica, se usa la fecha de inicio de la membresía.
+                    </p>
+                  </div>
+                </div>
               )}
             </div>
           </div>

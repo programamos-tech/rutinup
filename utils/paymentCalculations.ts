@@ -1,5 +1,5 @@
 import { Payment, Membership, MembershipType, Client } from '@/types';
-import { format, differenceInMonths, startOfMonth, endOfMonth, isBefore, isAfter, addMonths, parseISO } from 'date-fns';
+import { format, differenceInMonths, startOfMonth, endOfMonth, isBefore, isAfter, addMonths, parseISO, addDays, differenceInDays, startOfDay } from 'date-fns';
 
 /**
  * Calcula el estado de pagos de un cliente
@@ -53,12 +53,14 @@ export function calculatePaymentStatus(
     };
   }
 
-  const today = new Date();
-  const membershipStart = new Date(membership.startDate);
-  const membershipEnd = new Date(membership.endDate);
+  const today = startOfDay(new Date());
+  const membershipStart = startOfDay(new Date(membership.startDate));
+  const membershipEnd = startOfDay(new Date(membership.endDate));
   
-  // Calcular meses desde el inicio de la membresía hasta hoy
-  const monthsSinceStart = differenceInMonths(today, membershipStart);
+  // Usar billingStartDate si existe, sino usar startDate
+  const billingStartDate = membership.billingStartDate 
+    ? startOfDay(new Date(membership.billingStartDate))
+    : membershipStart;
   
   // Filtrar pagos asociados a esta membresía
   const membershipPayments = payments.filter(
@@ -74,73 +76,98 @@ export function calculatePaymentStatus(
       )[0]
     : null;
 
-  // Calcular meses pagados basado en los pagos
-  const paidMonths = new Set<string>();
+  // Calcular períodos pagados basado en los pagos
+  // Un pago puede cubrir un período específico identificado por paymentMonth
+  const paidPeriods = new Set<string>();
   membershipPayments.forEach(payment => {
     if (payment.paymentMonth) {
-      paidMonths.add(payment.paymentMonth);
+      paidPeriods.add(payment.paymentMonth);
     } else {
       // Si no tiene paymentMonth, inferirlo de la fecha de pago
       const paymentDate = new Date(payment.paymentDate);
       const month = format(paymentDate, 'yyyy-MM');
-      paidMonths.add(month);
+      paidPeriods.add(month);
     }
   });
 
-  // Calcular qué meses deberían estar pagados
-  // Para membresías vencidas, calcular hasta la fecha de vencimiento
-  // Para membresías activas, calcular hasta hoy
+  // Calcular qué períodos deberían estar pagados
+  // Los períodos se calculan desde billingStartDate con duración de durationDays
+  const durationDays = membershipType.durationDays;
   const endDate = membershipEnd < today ? membershipEnd : today;
-  const expectedMonths = new Set<string>();
-  let currentMonth = startOfMonth(membershipStart);
-  const endMonth = startOfMonth(endDate);
   
-  while (isBefore(currentMonth, endMonth) || isSameMonth(currentMonth, endMonth)) {
-    expectedMonths.add(format(currentMonth, 'yyyy-MM'));
-    currentMonth = addMonths(currentMonth, 1);
+  // Calcular períodos esperados desde billingStartDate
+  const expectedPeriods: string[] = [];
+  let currentPeriodStart = new Date(billingStartDate);
+  let periodNumber = 1;
+  
+  while (currentPeriodStart <= endDate) {
+    const periodEnd = addDays(currentPeriodStart, durationDays - 1);
+    
+    // Si el período se superpone con el rango de la membresía, debe estar pagado
+    if (periodEnd >= membershipStart && currentPeriodStart <= endDate) {
+      // Usar el formato YYYY-MM-DD del inicio del período como identificador único
+      const periodId = format(currentPeriodStart, 'yyyy-MM-dd');
+      expectedPeriods.push(periodId);
+    }
+    
+    // Mover al siguiente período
+    currentPeriodStart = addDays(currentPeriodStart, durationDays);
+    periodNumber++;
+    
+    // Limitar a 100 períodos para evitar loops infinitos
+    if (periodNumber > 100) break;
   }
 
-  // Calcular meses adeudados
-  const owedMonths: string[] = [];
-  expectedMonths.forEach(month => {
-    if (!paidMonths.has(month)) {
-      owedMonths.push(month);
+  // Calcular períodos adeudados
+  // Comparar períodos esperados con períodos pagados
+  // Para comparar, necesitamos convertir los paymentMonth (YYYY-MM) a períodos
+  const owedPeriods: string[] = [];
+  expectedPeriods.forEach(periodId => {
+    const periodStart = parseISO(periodId);
+    const periodMonth = format(periodStart, 'yyyy-MM');
+    
+    // Si no hay pago para este período, está adeudado
+    if (!paidPeriods.has(periodMonth)) {
+      owedPeriods.push(periodId);
     }
   });
 
-  const monthsOwed = owedMonths.length;
-  const monthsPaid = paidMonths.size;
-  const totalOwed = monthsOwed * membershipType.price;
+  // Calcular cantidad de períodos adeudados y pagados
+  const periodsOwed = owedPeriods.length;
+  const periodsPaid = paidPeriods.size;
+  const totalOwed = periodsOwed * membershipType.price;
 
   // Calcular días totales adeudados (períodos * duración del plan)
-  const durationDays = membershipType.durationDays;
-  const daysOwed = monthsOwed * durationDays;
+  const daysOwed = periodsOwed * durationDays;
 
-  // Calcular próximo mes de pago
+  // Calcular próximo período de pago
+  let nextPaymentDate: Date | null = null;
   let nextPaymentMonth: string | null = null;
-  if (owedMonths.length > 0) {
-    nextPaymentMonth = owedMonths[0]; // El primer mes adeudado
+  
+  if (owedPeriods.length > 0) {
+    // El primer período adeudado
+    const firstOwedPeriod = parseISO(owedPeriods[0]);
+    nextPaymentDate = firstOwedPeriod;
+    nextPaymentMonth = format(firstOwedPeriod, 'yyyy-MM');
   } else {
-    // Si está al día, el próximo mes es el siguiente al último pagado
-    if (lastPayment) {
-      const lastMonth = lastPayment.paymentMonth || format(new Date(lastPayment.paymentDate), 'yyyy-MM');
-      const lastMonthDate = parseISO(`${lastMonth}-01`);
-      const nextMonthDate = addMonths(lastMonthDate, 1);
-      nextPaymentMonth = format(nextMonthDate, 'yyyy-MM');
+    // Si está al día, calcular el próximo período
+    if (lastPayment && lastPayment.paymentMonth) {
+      const lastMonth = parseISO(`${lastPayment.paymentMonth}-01`);
+      // Calcular cuántos períodos han pasado desde billingStartDate hasta el último pago
+      const periodsSinceStart = Math.floor(differenceInDays(lastMonth, billingStartDate) / durationDays);
+      const nextPeriodStart = addDays(billingStartDate, (periodsSinceStart + 1) * durationDays);
+      nextPaymentDate = nextPeriodStart;
+      nextPaymentMonth = format(nextPeriodStart, 'yyyy-MM');
     } else {
-      // Si nunca ha pagado, el próximo es el mes de inicio
-      nextPaymentMonth = format(membershipStart, 'yyyy-MM');
+      // Si nunca ha pagado, el próximo es el primer período desde billingStartDate
+      nextPaymentDate = new Date(billingStartDate);
+      nextPaymentMonth = format(billingStartDate, 'yyyy-MM');
     }
   }
-
-  // Calcular fecha del próximo pago (primer día del próximo mes)
-  const nextPaymentDate = nextPaymentMonth 
-    ? parseISO(`${nextPaymentMonth}-01`)
-    : null;
 
   // Determinar las etiquetas según la duración del plan
   const { singular: periodLabelSingular, plural: periodLabelPlural } = getPeriodLabels(durationDays);
-  const periodLabel = monthsOwed === 1 ? periodLabelSingular : periodLabelPlural;
+  const periodLabel = periodsOwed === 1 ? periodLabelSingular : periodLabelPlural;
 
   // Determinar etiqueta para días adeudados
   let daysOwedLabel = 'días';
@@ -151,10 +178,10 @@ export function calculatePaymentStatus(
   }
 
   return {
-    isUpToDate: monthsOwed === 0,
-    isOverdue: monthsOwed > 0,
-    monthsPaid,
-    monthsOwed,
+    isUpToDate: periodsOwed === 0,
+    isOverdue: periodsOwed > 0,
+    monthsPaid: periodsPaid,
+    monthsOwed: periodsOwed,
     totalOwed,
     nextPaymentDate,
     lastPaymentDate: lastPayment ? new Date(lastPayment.paymentDate) : null,
