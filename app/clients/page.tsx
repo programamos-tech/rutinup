@@ -1312,6 +1312,7 @@ function NewMemberModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; onClo
         notes: '',
         membershipTypeId: '',
         membershipStartDate: '',
+        billingStartDate: '',
       });
       setSelectedClientIdsForGroup([]);
       setClientsToCreate([]);
