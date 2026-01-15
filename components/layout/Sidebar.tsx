@@ -15,12 +15,19 @@ import {
   ShoppingBag,
   Beaker,
   Ticket,
-  Box
+  Box,
+  X
 } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { useApp } from '@/context/AppContext';
 import { useAuth } from '@/context/AuthContext';
+
+interface SidebarProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+  onLinkClick?: () => void;
+}
 
 const menuItems = [
   { href: '/dashboard', label: 'Dashboard', icon: CreditCard, permission: 'dashboard' },
@@ -34,7 +41,7 @@ const menuItems = [
   { href: '/settings', label: 'Configuración', icon: Settings, permission: 'settings' },
 ];
 
-export function Sidebar() {
+export function Sidebar({ isOpen = true, onClose, onLinkClick }: SidebarProps) {
   const pathname = usePathname();
   const { gym } = useApp();
   const { userProfile, signOut, user } = useAuth();
@@ -74,38 +81,54 @@ export function Sidebar() {
   }, [userProfile]);
 
   return (
-    <div className="flex flex-col w-64 bg-white/80 dark:bg-dark-900/80 backdrop-blur-xl h-screen fixed left-0 top-0 z-50 border-r border-gray-200 dark:border-dark-700/50">
+    <div className={`
+      flex flex-col w-64 bg-white/80 dark:bg-dark-900/80 backdrop-blur-xl h-screen fixed left-0 top-0 z-50 border-r border-gray-200 dark:border-dark-700/50
+      transform transition-transform duration-300 ease-in-out
+      ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+      md:translate-x-0
+    `}>
       <div className="px-6 py-5 border-b border-gray-200 dark:border-dark-700/50">
-        <div className="flex items-center gap-3">
-          {/* Logo RUTINUP */}
-          <div className="flex-shrink-0">
-            <h1 className="text-4xl font-bogle font-bold uppercase leading-tight">
-              <span className="bg-gradient-to-r from-primary-500 to-primary-600 bg-clip-text text-transparent">
-                RUTIN
-              </span>
-              <span className="text-gray-900 dark:text-gray-50">UP</span>
-            </h1>
-            <p className="text-[10px] text-gray-600 dark:text-gray-500 font-medium leading-tight -mt-1" style={{ fontSize: 'calc(2.25rem * 0.28)' }}>
-              Administra tu Gimnasio
-            </p>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            {/* Logo RUTINUP */}
+            <div className="flex-shrink-0">
+              <h1 className="text-4xl font-bogle font-bold uppercase leading-tight">
+                <span className="bg-gradient-to-r from-primary-500 to-primary-600 bg-clip-text text-transparent">
+                  RUTIN
+                </span>
+                <span className="text-gray-900 dark:text-gray-50">UP</span>
+              </h1>
+              <p className="text-[10px] text-gray-600 dark:text-gray-500 font-medium leading-tight -mt-1" style={{ fontSize: 'calc(2.25rem * 0.28)' }}>
+                Administra tu Gimnasio
+              </p>
+            </div>
+            
+            {/* Separador y Logo del Gimnasio */}
+            {gym?.logo && (
+              <>
+                <span className="text-gray-400 dark:text-gray-600 text-xl font-light hidden sm:inline">|</span>
+                {/* Avatar circular con logo del gimnasio */}
+                <div className="flex-shrink-0 hidden sm:block">
+                  <div className="w-14 h-14 rounded-full bg-gray-100 dark:bg-dark-800 border-2 border-gray-300 dark:border-dark-700 overflow-hidden flex items-center justify-center">
+                    <img
+                      src={gym.logo}
+                      alt={gym.name}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
           </div>
           
-          {/* Separador y Logo del Gimnasio */}
-          {gym?.logo && (
-            <>
-              <span className="text-gray-400 dark:text-gray-600 text-xl font-light">|</span>
-              {/* Avatar circular con logo del gimnasio */}
-              <div className="flex-shrink-0">
-                <div className="w-14 h-14 rounded-full bg-gray-100 dark:bg-dark-800 border-2 border-gray-300 dark:border-dark-700 overflow-hidden flex items-center justify-center">
-                  <img
-                    src={gym.logo}
-                    alt={gym.name}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              </div>
-            </>
-          )}
+          {/* Botón cerrar para móviles */}
+          <button
+            onClick={onClose}
+            className="md:hidden p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-800/50 transition-colors flex-shrink-0"
+            aria-label="Cerrar menú"
+          >
+            <X className="w-5 h-5 text-gray-700 dark:text-gray-300" />
+          </button>
         </div>
       </div>
 
@@ -118,6 +141,7 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={onLinkClick}
               className={`flex items-center px-3 py-2.5 transition-all rounded-lg text-sm font-medium ${
                 isActive
                   ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30'
